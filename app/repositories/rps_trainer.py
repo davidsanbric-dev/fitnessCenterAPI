@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.models import (
+    Discipline,
+    Location,
+    MembershipPlan,
+    Slot,
+    Trainer,
+)
+
+
+# Adapted repository from clinic GetProfessionalsByPrevision and professional availability queries.
+class TrainerRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_trainers(
+        self,
+        discipline_id: int | None = None,
+        membership_plan_id: int | None = None,
+        location_code: str | None = None,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[Trainer], int]:
+        # Adapted professional listing filters: specialty/prevision/branch -> discipline/membership/location.
+        statement = select(Trainer).options(selectinload(Trainer.disciplines), selectinload(Trainer.location)).where(Trainer.is_active.is_(True))
+        count_statement = select(func.count()).select_from(Trainer).where(Trainer.is_active.is_(True))
+
+        if discipline_id is not None:
+            statement = statement.join(Trainer.disciplines).where(Discipline.id == discipline_id)
+            count_statement = count_statement.join(Trainer.disciplines).where(Discipline.id == discipline_id)
+        if membership_plan_id is not None:
+            statement = statement.join(Trainer.membership_plans).where(MembershipPlan.id == membership_plan_id)
+            count_statement = count_statement.join(Trainer.membership_plans).where(MembershipPlan.id == membership_plan_id)
+        if location_code is not None:
+            statement = statement.join(Trainer.location).where(Location.location_code == location_code)
+            count_statement = count_statement.join(Trainer.location).where(Location.location_code == location_code)
+        if search:
+            pattern = f"%{search}%"
+            statement = statement.where(or_(Trainer.full_name.ilike(pattern), Trainer.bio.ilike(pattern)))
+            count_statement = count_statement.where(or_(Trainer.full_name.ilike(pattern), Trainer.bio.ilike(pattern)))
+
+        total = int(self.db.scalar(count_statement) or 0)
+        items = self.db.scalars(statement.order_by(Trainer.full_name).offset((page - 1) * page_size).limit(page_size)).all()
+        return list(items), total
+
+    def get_trainer(self, trainer_id: int) -> Trainer | None:
+        statement = (
+            select(Trainer)
+            .options(selectinload(Trainer.disciplines), selectinload(Trainer.slots).selectinload(Slot.discipline))
+            .where(Trainer.id == trainer_id)
+        )
+        return self.db.scalar(statement)
+
+    def get_availability(
+        self,
+        trainer_id: int,
+        date_from: datetime,
+        date_to: datetime,
+        discipline_id: int | None = None,
+    ) -> list[Slot]:
+        # Adapted from clinic GetAvailableAppointments for a specific professional.
+        statement = (
+            select(Slot)
+            .options(selectinload(Slot.discipline))
+            .where(
+                Slot.trainer_id == trainer_id,
+                Slot.slot_datetime >= date_from,
+                Slot.slot_datetime <= date_to,
+                Slot.is_available.is_(True),
+            )
+        )
+        if discipline_id is not None:
+            statement = statement.where(Slot.discipline_id == discipline_id)
+        return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())
