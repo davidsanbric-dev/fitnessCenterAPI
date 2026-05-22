@@ -96,7 +96,6 @@ psql "postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule" \
 	-f sql/seed_firebase_user_postgres.sql
 ```
 
-`sql/seed_firebase_user.sql` is kept as the legacy SQLite-compatible seed.
 
 ## Notes
 
