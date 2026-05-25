@@ -8,8 +8,24 @@ from alembic import command
 from alembic.config import Config
 
 from app.core.config import settings
+from app.core.db import engine
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def wait_for_db(retries: int = 30, delay_seconds: float = 2.0) -> None:
+	for attempt in range(1, retries + 1):
+		try:
+			with engine.connect() as connection:
+				connection.exec_driver_sql("SELECT 1")
+			logger.info("Database is ready for migrations.")
+			return
+		except Exception:
+			if attempt >= retries:
+				logger.exception("Database not ready after %s attempts.", retries)
+				raise
+			logger.warning("Database not ready yet (%s/%s). Retrying...", attempt, retries)
+			time.sleep(delay_seconds)
 
 
 def apply_migrations() -> None:
@@ -19,6 +35,7 @@ def apply_migrations() -> None:
 		logger.warning("Alembic config not found at %s; skipping migrations.", alembic_ini)
 		return
 
+	wait_for_db()
 	logger.info("Applying Alembic migrations from %s", alembic_ini)
 	start_time = time.monotonic()
 	config = Config(str(alembic_ini))
