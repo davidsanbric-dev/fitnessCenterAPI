@@ -2,17 +2,16 @@ SHELL := /bin/bash
 
 DB_URL ?= postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule
 
-.PHONY: help deps db-up db-down init-db seed api bootstrap
+.PhONY: help deps db-up db-down seed api bootstrap
 
 help:
 	@echo "Available targets:"
 	@echo "  make deps       - install/sync Python dependencies"
 	@echo "  make db-up      - start PostgreSQL container via docker compose"
 	@echo "  make db-down    - stop PostgreSQL container and compose resources"
-	@echo "  make init-db    - create DB schema"
 	@echo "  make seed       - apply PostgreSQL seed script"
 	@echo "  make api        - run FastAPI server with reload"
-	@echo "  make bootstrap  - db-up + deps + init-db + seed"
+	@echo "  make bootstrap  - db-up + deps + seed"
 
 deps:
 	uv sync
@@ -29,13 +28,10 @@ db-up:
 db-down:
 	docker compose down
 
-init-db:
-	uv run python scripts/init_db.py
-
 seed:
-	psql "$(DB_URL)" -f sql/seed_firebase_user_postgres.sql
+	psql "$(DB_URL)" -f sql/seed_data.sql
 
 api:
 	uv run python scripts/run_api.py --reload
 
-bootstrap: db-up deps init-db seed
+bootstrap: db-up deps seed

@@ -26,9 +26,6 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Run database migrations
-echo "Running database initialization..."
-uv run python scripts/init_db.py
 
 # Run seed data (including Firebase user)
 echo "Running database seeding..."

@@ -15,7 +15,6 @@ Gym scheduling backend generated from the clinic-to-gym adaptation contract.
 ```bash
 cd /home/david/Escritorio/portfolio/project_api
 uv sync
-uv run python scripts/init_db.py
 uv run python scripts/run_api.py --reload
 ```
 
@@ -100,10 +99,10 @@ psql "postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule" \
 ## Notes
 
 - Default database: `postgresql+psycopg://postgres:postgres@127.0.0.1:55432/gym_schedule`
-- `Makefile` targets available: `db-up`, `db-down`, `deps`, `init-db`, `seed`, `api`, `bootstrap`
+- `Makefile` targets available: `db-up`, `db-down`, `deps`, `seed`, `api`, `bootstrap`
 - `make db-up` reuses an existing container already bound to `55432` instead of failing
 - Override settings with environment variables or a local `.env` file
-- The app seeds locations, memberships, trainers, class categories, class types, and slots on first startup
+- The app automatically creates the database schema on startup (lifespan handler), then seeds locations, memberships, trainers, class categories, class types, and slots
 - `scripts/run_api.py` avoids `ModuleNotFoundError: app` when running outside `project_api`
 - API process is long-running; run seed in a separate terminal or before starting the server
 
