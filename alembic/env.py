@@ -13,7 +13,7 @@ from app import models
 config = context.config
 
 if config.config_file_name is not None:
-	fileConfig(config.config_file_name)
+	fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 project_root = Path(__file__).resolve().parents[1]
 config.set_main_option("script_location", str(project_root / "alembic"))
