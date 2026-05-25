@@ -2,12 +2,14 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: gym_schedule
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "55432:5432"
+      - "${POSTGRES_PORT:-55432}:5432"
     volumes:
       - gym_postgres_data:/var/lib/postgresql/data
 

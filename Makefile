@@ -1,6 +1,9 @@
 SHELL := /bin/bash
 
-DB_URL ?= postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule
+-include .env
+export
+
+DB_URL ?= $(DATABASE_URL)
 
 .PhONY: help deps db-up db-down seed api bootstrap
 
@@ -9,7 +12,7 @@ help:
 	@echo "  make deps       - install/sync Python dependencies"
 	@echo "  make db-up      - start PostgreSQL container via docker compose"
 	@echo "  make db-down    - stop PostgreSQL container and compose resources"
-	@echo "  make seed       - apply PostgreSQL seed script"
+	@echo "  make seed       - apply Alembic seed migration"
 	@echo "  make api        - run FastAPI server with reload"
 	@echo "  make bootstrap  - db-up + deps + seed"
 
@@ -29,7 +32,7 @@ db-down:
 	docker compose down
 
 seed:
-	uv run alembic upgrade head
+	DATABASE_URL=$(DB_URL) uv run alembic upgrade head
 
 api:
 	uv run python scripts/run_api.py --reload
