@@ -35,6 +35,6 @@ seed:
 	DATABASE_URL=$(DB_URL) uv run alembic upgrade head
 
 api:
-	uv run python scripts/run_api.py --reload
+	uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 bootstrap: db-up deps seed
