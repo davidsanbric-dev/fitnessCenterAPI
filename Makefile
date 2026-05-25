@@ -29,7 +29,7 @@ db-down:
 	docker compose down
 
 seed:
-	psql "$(DB_URL)" -f sql/seed_data.sql
+	uv run alembic upgrade head
 
 api:
 	uv run python scripts/run_api.py --reload

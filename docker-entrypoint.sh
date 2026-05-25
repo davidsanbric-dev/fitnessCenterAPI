@@ -27,15 +27,6 @@ for i in {1..30}; do
 done
 
 
-# Run seed data (including Firebase user)
-echo "Running database seeding..."
-if [ -f "/app/sql/seed_data.sql" ]; then
-    psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f /app/sql/seed_data.sql
-    echo "Database seeding completed."
-else
-    echo "Warning: Seed file not found at /app/sql/seed_data.sql"
-fi
-
 # Start the application
 echo "Starting application..."
 exec "$@"

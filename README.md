@@ -86,14 +86,9 @@ cp .env.example .env
 
 Existing member/mobile endpoints remain unchanged and available.
 
-### Seed Firebase-linked API user
+### Seed data
 
-Run the PostgreSQL seed script after schema initialization:
-
-```bash
-psql "postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule" \
-	-f sql/seed_firebase_user_postgres.sql
-```
+Seed data now runs via Alembic on application startup (after tables are created).
 
 
 ## Notes
@@ -102,7 +97,7 @@ psql "postgresql://postgres:postgres@127.0.0.1:55432/gym_schedule" \
 - `Makefile` targets available: `db-up`, `db-down`, `deps`, `seed`, `api`, `bootstrap`
 - `make db-up` reuses an existing container already bound to `55432` instead of failing
 - Override settings with environment variables or a local `.env` file
-- The app automatically creates the database schema on startup (lifespan handler), then seeds locations, memberships, trainers, class categories, class types, and slots
+- The app automatically creates the database schema on startup (lifespan handler), then applies Alembic seed migrations
 - `scripts/run_api.py` avoids `ModuleNotFoundError: app` when running outside `project_api`
 - API process is long-running; run seed in a separate terminal or before starting the server
 
