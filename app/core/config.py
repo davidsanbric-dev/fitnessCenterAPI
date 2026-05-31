@@ -19,10 +19,7 @@ class Settings(BaseSettings):
 	api_v1_prefix: str = "/api/v1"
 	debug: bool = False
 	database_url: str = Field(...)
-	jwt_secret_key: str = Field(...)
-	jwt_algorithm: str = "HS256"
 	access_token_expire_minutes: int = 30
-	refresh_token_expire_days: int = 7
 	seed_data: bool = False
 	admin_emails: list[str] = Field(default_factory=list)
 	manager_emails: list[str] = Field(default_factory=list)

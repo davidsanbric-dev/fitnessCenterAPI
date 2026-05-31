@@ -210,8 +210,8 @@ def upgrade() -> None:
 		-- =============================================================================
 		-- FIREBASE-LINKED USER (email is unique)
 		-- =============================================================================
-		INSERT INTO users (email, password_hash, is_active, created_at)
-		VALUES ('davidsnbr@gmail.com', 'firebase_managed_account', TRUE, CURRENT_TIMESTAMP)
+		INSERT INTO users (email, is_active, created_at)
+		VALUES ('davidsnbr@gmail.com', TRUE, CURRENT_TIMESTAMP)
 		ON CONFLICT (email) DO NOTHING;
 
 		-- =============================================================================

@@ -63,7 +63,6 @@ class User(TimestampMixin, Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 	email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-	password_hash: Mapped[str] = mapped_column(String(255))
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 	profile: Mapped[MemberProfile | None] = relationship(back_populates="user", uselist=False)
@@ -71,7 +70,6 @@ class User(TimestampMixin, Base):
 	notifications: Mapped[list[Notification]] = relationship(back_populates="user")
 	device_tokens: Mapped[list[DeviceToken]] = relationship(back_populates="user")
 	membership: Mapped[MemberMembership | None] = relationship(back_populates="user", uselist=False)
-	refresh_tokens: Mapped[list[RefreshToken]] = relationship(back_populates="user")
 
 
 class MemberProfile(Base):
@@ -319,16 +317,3 @@ class DeviceToken(Base):
 	platform: Mapped[str] = mapped_column(String(20))
 
 	user: Mapped[User] = relationship(back_populates="device_tokens")
-
-
-class RefreshToken(TimestampMixin, Base):
-	# Auth extension for JWT refresh lifecycle in the adapted gym backend.
-	__tablename__ = "refresh_tokens"
-
-	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-	token: Mapped[str] = mapped_column(String(500), unique=True)
-	expires_at: Mapped[datetime] = mapped_column(DateTime)
-	is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-
-	user: Mapped[User] = relationship(back_populates="refresh_tokens")

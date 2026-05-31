@@ -7,14 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.firebase_auth import set_firebase_custom_claims
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    hash_password,
-    validate_password_strength,
-    verify_password,
-)
 from app.models import (
     MemberMembership,
     MemberProfile,
@@ -32,15 +24,11 @@ class AuthService:
         self.user_repository = UserRepository(db)
 
     def register(self, payload) -> dict:
-        # Adapted from clinic RegisterPatient command.
+        # Adapted from clinic RegisterPatient command; provisions the backend record while Firebase owns the credential.
         if self.user_repository.get_by_email(payload.email):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-        try:
-            validate_password_strength(payload.password)
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-        user = User(email=str(payload.email), password_hash=hash_password(payload.password))
+        user = User(email=str(payload.email))
         birth_date = date.fromisoformat(payload.birth_date) if payload.birth_date else None
         profile = MemberProfile(
             first_name=payload.first_name,
@@ -65,54 +53,9 @@ class AuthService:
             self.db.add(membership)
             self.db.commit()
             user = self.user_repository.get_by_id(user.id) or user
-        access_token, _ = create_access_token(user.id)
-        refresh_token, refresh_expiry = create_refresh_token(user.id)
-        self.user_repository.store_refresh_token(user.id, refresh_token, refresh_expiry)
-        return {
-            **serialize_user(user),
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.access_token_expire_minutes * 60,
-        }
-
-    def login(self, email: str, password: str) -> dict:
-        user = self.user_repository.get_by_email(email)
-        if user is None or not verify_password(password, user.password_hash):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-        access_token, _ = create_access_token(user.id)
-        refresh_token, refresh_expiry = create_refresh_token(user.id)
-        self.user_repository.store_refresh_token(user.id, refresh_token, refresh_expiry)
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.access_token_expire_minutes * 60,
-        }
-
-    def refresh(self, refresh_token: str) -> dict:
-        token_record = self.user_repository.get_refresh_token(refresh_token)
-        if token_record is None or token_record.is_revoked:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-        try:
-            payload = decode_token(refresh_token)
-        except Exception as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token") from exc
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-        self.user_repository.revoke_refresh_token(refresh_token)
-        access_token, _ = create_access_token(int(payload["sub"]))
-        new_refresh_token, refresh_expiry = create_refresh_token(int(payload["sub"]))
-        self.user_repository.store_refresh_token(int(payload["sub"]), new_refresh_token, refresh_expiry)
-        return {
-            "access_token": access_token,
-            "refresh_token": new_refresh_token,
-            "token_type": "bearer",
-            "expires_in": settings.access_token_expire_minutes * 60,
-        }
-
-    def logout(self, user_id: int) -> None:
-        self.user_repository.revoke_user_refresh_tokens(user_id)
+        # Provisioning only: authentication tokens are issued by Firebase, so we
+        # return the created member identity rather than minting local JWTs.
+        return serialize_user(user)
 
     def get_profile(self, user_id: int) -> dict:
         # Adapted from clinic GetPatient query projection.
@@ -127,18 +70,6 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         updated = self.user_repository.update_profile(user, payload)
         return serialize_user(updated)
-
-    def change_password(self, user_id: int, current_password: str, new_password: str) -> None:
-        user = self.user_repository.get_by_id(user_id)
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        if not verify_password(current_password, user.password_hash):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
-        try:
-            validate_password_strength(new_password)
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-        self.user_repository.update_password(user, hash_password(new_password))
 
     def sync_firebase_claims(self, email: str, firebase_uid: str) -> dict:
         normalized_email = email.strip().lower()

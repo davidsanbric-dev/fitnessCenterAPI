@@ -18,27 +18,8 @@ class RegisterRequest(APIModel):
     address: str | None = None
 
 
-class LoginRequest(APIModel):
-    # Gym auth operation replacing clinic identity lookup command/query flow.
-    email: EmailStr
-    password: str
-
-
-class TokenRefreshRequest(APIModel):
-    # JWT refresh payload for adapted auth lifecycle.
-    refresh_token: str
-
-
-class TokenResponse(APIModel):
-    # Shared token contract for adapted gym authentication endpoints.
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
-
-class RegisterResponse(TokenResponse):
-    # Register response includes adapted member naming fields from clinic patient data.
+class RegisterResponse(APIModel):
+    # Provisioning result: identity of the created member. Auth tokens are issued by Firebase.
     id: int
     email: EmailStr
     first_name: str

@@ -37,7 +37,7 @@ def verify_firebase_token(token: str) -> dict:
 
     try:
         _get_firebase_app()
-        return auth.verify_id_token(token, check_revoked=True)
+        decoded = auth.verify_id_token(token, check_revoked=True)
     except auth.ExpiredIdTokenError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired") from exc
     except auth.RevokedIdTokenError as exc:
@@ -46,6 +46,12 @@ def verify_firebase_token(token: str) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token") from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase auth is not configured") from exc
+
+    # Email-based identity/role resolution requires a verified email to prevent
+    # spoofing an allowlisted (e.g. admin) address via an unverified sign-up.
+    if decoded.get("email_verified") is not True:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
+    return decoded
 
 
 def set_firebase_custom_claims(uid: str, claims: dict) -> None:

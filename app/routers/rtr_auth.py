@@ -4,7 +4,6 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Response,
     status,
 )
 from fastapi.security import HTTPAuthorizationCredentials
@@ -13,19 +12,15 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import bearer_scheme, get_current_user, get_db
 from app.core.firebase_auth import verify_firebase_token
 from app.models import User
-from app.schemas import MessageResponse
 from app.schemas.scm_auth import (
     AppUserContext,
     FirebaseLoginRequest,
     FirebaseLoginResponse,
     FirebaseClaimsSyncResponse,
-    LoginRequest,
     RegisterRequest,
     RegisterResponse,
-    TokenRefreshRequest,
-    TokenResponse,
 )
-from app.schemas.scm_user import ChangePasswordRequest, CurrentUserResponse, UpdateUserRequest
+from app.schemas.scm_user import CurrentUserResponse, UpdateUserRequest
 from app.services.svc_auth import AuthService
 
 router = APIRouter(tags=["auth"])
@@ -35,25 +30,6 @@ router = APIRouter(tags=["auth"])
 @router.post("/auth/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     return AuthService(db).register(payload)
-
-
-# Adapted from clinic identity-based login semantics to email/password auth.
-@router.post("/auth/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    return AuthService(db).login(str(payload.email), payload.password)
-
-
-# Auth extension for refresh-token lifecycle in adapted gym backend.
-@router.post("/auth/refresh", response_model=TokenResponse)
-def refresh(payload: TokenRefreshRequest, db: Session = Depends(get_db)):
-    return AuthService(db).refresh(payload.refresh_token)
-
-
-# Auth extension for refresh-token revocation.
-@router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    AuthService(db).logout(current_user.id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # Adapted from clinic GetPatient read flow.
@@ -67,13 +43,6 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
 def update_me(payload: UpdateUserRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     data = payload.model_dump(exclude_unset=True)
     return AuthService(db).update_profile(current_user.id, data)
-
-
-# Auth extension for password change operation.
-@router.put("/users/me/password", response_model=MessageResponse)
-def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    AuthService(db).change_password(current_user.id, payload.current_password, payload.new_password)
-    return {"message": "Password updated"}
 
 
 @router.post("/auth/firebase/sync-claims", response_model=FirebaseClaimsSyncResponse)

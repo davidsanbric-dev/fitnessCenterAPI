@@ -42,9 +42,3 @@ class UpdateUserRequest(APIModel):
     address: str | None = None
     avatar_url: str | None = None
     fitness_goals: str | None = None
-
-
-class ChangePasswordRequest(APIModel):
-    # Gym auth extension for password rotation.
-    current_password: str
-    new_password: str
