@@ -108,8 +108,8 @@ class AuthService:
 
     def resolve_role_permissions(self, email: str) -> tuple[str, list[str]]:
         normalized_email = email.strip().lower()
-        admin_emails = {item.strip().lower() for item in settings.admin_emails}
-        manager_emails = {item.strip().lower() for item in settings.manager_emails}
+        admin_emails = set(settings.admin_email_addresses)
+        manager_emails = set(settings.manager_email_addresses)
 
         if normalized_email in admin_emails:
             return (

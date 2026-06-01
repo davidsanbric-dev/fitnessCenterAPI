@@ -41,6 +41,36 @@ class Settings(BaseSettings):
 		}
 	)
 
+	@property
+	def admin_credentials(self) -> list[tuple[str, str | None]]:
+		"""Demo admin accounts from ADMIN_EMAILS, each entry as 'email[:password]'.
+
+		The single source of truth for demo users: drives both Firebase account
+		setup and the backend user seed. Password is optional (None when absent).
+		"""
+		return _parse_credentials(self.admin_emails)
+
+	@property
+	def admin_email_addresses(self) -> list[str]:
+		"""Bare admin emails (password stripped) for role/permission resolution."""
+		return [email for email, _ in self.admin_credentials]
+
+	@property
+	def manager_email_addresses(self) -> list[str]:
+		"""Bare manager emails (password stripped) for role/permission resolution."""
+		return [email for email, _ in _parse_credentials(self.manager_emails)]
+
+
+def _parse_credentials(items: list[str]) -> list[tuple[str, str | None]]:
+	credentials: list[tuple[str, str | None]] = []
+	for item in items:
+		email, _, password = item.partition(":")
+		email = email.strip().lower()
+		if not email:
+			continue
+		credentials.append((email, password.strip() or None))
+	return credentials
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -206,30 +206,49 @@ def upgrade() -> None:
 		JOIN class_types ct ON ct.name = 'CrossFit Starter'
 		WHERE l.location_code = 'LOC002'
 		ON CONFLICT (trainer_id, slot_datetime) DO NOTHING;
-
-		-- =============================================================================
-		-- FIREBASE-LINKED USER (email is unique)
-		-- =============================================================================
-		INSERT INTO users (email, is_active, created_at)
-		VALUES ('davidsnbr@gmail.com', TRUE, CURRENT_TIMESTAMP)
-		ON CONFLICT (email) DO NOTHING;
-
-		-- =============================================================================
-		-- MEMBER PROFILE FOR FIREBASE USER (user_id is unique)
-		-- =============================================================================
-		INSERT INTO member_profiles (
-		  user_id, first_name, paternal_surname, maternal_surname,
-		  mobile_phone, landline_phone, birth_date, address, avatar_url, fitness_goals
-		)
-		SELECT
-		  u.id, 'David', 'Snbr', 'Dev',
-		  '+569' || substring(md5(random()::text), 1, 8),
-		  NULL, DATE '1994-08-12', 'Santiago, Chile', NULL, 'Improve resistance and mobility'
-		FROM users u
-		WHERE lower(u.email) = lower('davidsnbr@gmail.com')
-		ON CONFLICT (user_id) DO NOTHING;
 		"""
 	)
+
+	# Firebase-linked demo users + profiles are seeded from ADMIN_EMAILS (the single
+	# source of truth shared with scripts/set_and_verify_demo_users.py).
+	_seed_demo_users()
+
+
+def _seed_demo_users() -> None:
+	import sqlalchemy as sa
+
+	from app.core.config import settings
+
+	bind = op.get_bind()
+	for email, _password in settings.admin_credentials:
+		local_part = email.split("@", 1)[0]
+		first_name = (local_part[:1].upper() + local_part[1:]) if local_part else "Demo"
+
+		# Firebase-linked user (email is unique)
+		bind.execute(
+			sa.text(
+				"INSERT INTO users (email, is_active, created_at) "
+				"VALUES (:email, TRUE, CURRENT_TIMESTAMP) "
+				"ON CONFLICT (email) DO NOTHING"
+			),
+			{"email": email},
+		)
+
+		# Member profile for the demo user (user_id is unique)
+		bind.execute(
+			sa.text(
+				"INSERT INTO member_profiles ("
+				"  user_id, first_name, paternal_surname, maternal_surname, "
+				"  mobile_phone, landline_phone, birth_date, address, avatar_url, fitness_goals"
+				") "
+				"SELECT u.id, :first_name, 'Demo', 'User', "
+				"  '+569' || substring(md5(random()::text), 1, 8), "
+				"  NULL, NULL, NULL, NULL, NULL "
+				"FROM users u WHERE lower(u.email) = :email "
+				"ON CONFLICT (user_id) DO NOTHING"
+			),
+			{"first_name": first_name, "email": email},
+		)
 
 
 def downgrade() -> None:

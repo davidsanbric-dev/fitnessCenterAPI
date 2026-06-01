@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,10 +11,27 @@ from app.core.db import Base, engine
 from app.core.migrations import apply_migrations
 from app.routers import api_router
 
+logger = logging.getLogger("uvicorn.error")
+
+
+def _setup_demo_firebase_accounts() -> None:
+    """Create/verify demo Firebase accounts from ADMIN_EMAILS (best-effort).
+
+    Runs before migrations so demo credentials exist on the Firebase side. Never
+    blocks startup: if Firebase is unconfigured (e.g. local dev), it is skipped.
+    """
+    try:
+        from scripts.set_and_verify_demo_users import seed_demo_users_from_settings
+
+        seed_demo_users_from_settings()
+    except Exception:
+        logger.warning("Demo Firebase account setup skipped (see traceback).", exc_info=True)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _setup_demo_firebase_accounts()
     apply_migrations()
     yield
 
