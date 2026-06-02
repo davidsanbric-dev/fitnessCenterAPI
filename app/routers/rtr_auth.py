@@ -6,18 +6,15 @@ from fastapi import (
     HTTPException,
     status,
 )
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.core.client_origin import ClientOrigin, get_client_origin
-from app.core.dependencies import bearer_scheme, get_current_user, get_db
-from app.core.firebase_auth import verify_firebase_token
+from app.core.dependencies import get_current_user, get_db
 from app.models import User
 from app.schemas.scm_auth import (
     AppUserContext,
     FirebaseLoginRequest,
     FirebaseLoginResponse,
-    FirebaseClaimsSyncResponse,
     RegisterRequest,
     RegisterResponse,
 )
@@ -44,24 +41,6 @@ def me(current_user: User = Depends(get_current_user), db: Session = Depends(get
 def update_me(payload: UpdateUserRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     data = payload.model_dump(exclude_unset=True)
     return AuthService(db).update_profile(current_user.id, data)
-
-
-@router.post("/auth/firebase/sync-claims", response_model=FirebaseClaimsSyncResponse)
-def sync_firebase_claims(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-):
-    if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-
-    payload = verify_firebase_token(credentials.credentials)
-    firebase_uid = str(payload.get("uid") or "").strip()
-    email = str(payload.get("email") or "").strip()
-
-    if not firebase_uid or not email:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
-
-    return AuthService(db).sync_firebase_claims(email=email, firebase_uid=firebase_uid)
 
 
 @router.post("/auth/firebase-login", response_model=FirebaseLoginResponse)

@@ -61,17 +61,15 @@ cp .env.example .env
 	- Application Default Credentials available in the runtime environment.
 - Optional: `FIREBASE_PROJECT_ID=<firebase-project-id>`
 
-### Sync custom claims after Firebase sign-in
+### Sign in / sync custom claims after Firebase sign-in
 
-- Endpoint: `POST /api/v1/auth/firebase/sync-claims`
-- Header: `Authorization: Bearer <firebase-id-token>`
-- Behavior: looks up API user by Firebase token email and sets custom claims in Firebase.
-
-### Admin web auth + lookup endpoints (additive)
-
-- `POST /api/v1/auth/firebase-login`
+- `POST /api/v1/auth/firebase-login` — shared entry point for both clients.
 	- Request: `{ "id_token": "<firebase-id-token>" }`
-	- Response: backend role/permissions context for web app session bootstrap
+	- Header: `X-Client-Platform: mobile | web` — origin gate enforcing that members
+	  sign in only from the mobile app and staff (admin/manager) only from the web
+	  app. Absent/unknown values are rejected (`400`); role mismatch returns `403`.
+	- Behavior: verifies the token, resolves backend role/permissions, and sets the
+	  Firebase custom claims (`app_role`, `app_display_name`, ...) used by sessions.
 - `GET /api/v1/users/by-email?email=<email>`
 	- Requires admin/manager role (resolved from configured email lists)
 

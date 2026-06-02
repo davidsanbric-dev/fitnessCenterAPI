@@ -27,12 +27,6 @@ class RegisterResponse(APIModel):
     maternal_surname: str
 
 
-class FirebaseClaimsSyncResponse(APIModel):
-    email: EmailStr
-    firebase_uid: str
-    claims: dict[str, str | int | bool | None]
-
-
 class FirebaseLoginRequest(APIModel):
     id_token: str
 

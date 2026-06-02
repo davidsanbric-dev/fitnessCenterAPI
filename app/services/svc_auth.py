@@ -72,41 +72,6 @@ class AuthService:
         updated = self.user_repository.update_profile(user, payload)
         return serialize_user(updated)
 
-    def sync_firebase_claims(self, email: str, firebase_uid: str) -> dict:
-        normalized_email = email.strip().lower()
-        if not normalized_email:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid email")
-
-        user = self.user_repository.get_by_email(normalized_email)
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        role = "member"
-        profile = user.profile
-        display_name_parts = []
-        if profile is not None:
-            display_name_parts = [
-                profile.first_name.strip(),
-                profile.paternal_surname.strip(),
-                profile.maternal_surname.strip(),
-            ]
-
-        display_name = " ".join(part for part in display_name_parts if part)
-        claims = {
-            "app_user_id": user.id,
-            "app_email": user.email,
-            "app_role": role,
-            "app_is_active": user.is_active,
-            "app_display_name": display_name or None,
-        }
-
-        set_firebase_custom_claims(firebase_uid, claims)
-        return {
-            "email": user.email,
-            "firebase_uid": firebase_uid,
-            "claims": claims,
-        }
-
     def resolve_role_permissions(self, email: str) -> tuple[str, list[str]]:
         normalized_email = email.strip().lower()
         admin_emails = set(settings.admin_email_addresses)
