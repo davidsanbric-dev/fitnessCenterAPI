@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.client_origin import ClientOrigin
 from app.core.config import settings
 from app.core.firebase_auth import set_firebase_custom_claims
 from app.models import (
@@ -145,7 +146,14 @@ class AuthService:
         role, _ = self.resolve_role_permissions(email)
         return role in {"admin", "manager"}
 
-    def firebase_login(self, id_token: str) -> dict:
+    # Role buckets each deployed application is allowed to sign in as. The mobile
+    # app serves members; the web app serves staff (admin/manager).
+    _ALLOWED_ROLES_BY_ORIGIN: dict[ClientOrigin, frozenset[str]] = {
+        ClientOrigin.MOBILE: frozenset({"member"}),
+        ClientOrigin.WEB: frozenset({"admin", "manager"}),
+    }
+
+    def firebase_login(self, id_token: str, *, origin: ClientOrigin) -> dict:
         from app.core.firebase_auth import verify_firebase_token
 
         payload = verify_firebase_token(id_token)
@@ -160,6 +168,17 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User authenticated with Firebase but not provisioned in backend")
 
         role, permissions = self.resolve_role_permissions(user.email)
+
+        # Enforce that the account's role matches the application it is signing in
+        # from (members -> mobile, staff -> web). This is a product/UX boundary,
+        # not a privilege gate: role is resolved from the verified email above, so
+        # a mismatched origin can only reject a login, never elevate one.
+        if role not in self._ALLOWED_ROLES_BY_ORIGIN[origin]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is not allowed to sign in from this application",
+            )
+
         profile = user.profile
         profile_payload = {
             "first_name": profile.first_name if profile else "",
@@ -174,11 +193,17 @@ class AuthService:
             "location_codes": list(settings.locations.keys()),
         }
 
+        display_name = " ".join(
+            part
+            for part in [profile_payload["first_name"], profile_payload["last_name"]]
+            if part
+        ).strip()
         claims = {
             "app_user_id": user.id,
             "app_email": user.email,
             "app_role": role,
             "app_is_active": user.is_active,
+            "app_display_name": display_name or None,
         }
         set_firebase_custom_claims(firebase_uid, claims)
 

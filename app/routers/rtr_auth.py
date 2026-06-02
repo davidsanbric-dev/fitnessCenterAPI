@@ -9,6 +9,7 @@ from fastapi import (
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from app.core.client_origin import ClientOrigin, get_client_origin
 from app.core.dependencies import bearer_scheme, get_current_user, get_db
 from app.core.firebase_auth import verify_firebase_token
 from app.models import User
@@ -64,8 +65,12 @@ def sync_firebase_claims(
 
 
 @router.post("/auth/firebase-login", response_model=FirebaseLoginResponse)
-def firebase_login(payload: FirebaseLoginRequest, db: Session = Depends(get_db)):
-    return AuthService(db).firebase_login(payload.id_token)
+def firebase_login(
+    payload: FirebaseLoginRequest,
+    origin: ClientOrigin = Depends(get_client_origin),
+    db: Session = Depends(get_db),
+):
+    return AuthService(db).firebase_login(payload.id_token, origin=origin)
 
 
 @router.get("/users/by-email", response_model=AppUserContext)
