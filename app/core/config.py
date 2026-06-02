@@ -53,6 +53,8 @@ class Settings(BaseSettings):
 		from pathlib import Path
 
 		path = Path(self.demo_users)
+		if not path.is_absolute():
+			path = Path(__file__).resolve().parents[2] / path
 		if not path.exists():
 			return []
 		data = json.loads(path.read_text())
