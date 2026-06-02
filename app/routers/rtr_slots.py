@@ -5,12 +5,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_db
 from app.schemas import PaginatedResponse
 from app.schemas.scm_slot import SlotResponse
 from app.services.svc_slot import SlotService
 
-router = APIRouter(prefix="/slots", tags=["slots"])
+# Auth required so slot search is scoped to the caller's company.
+router = APIRouter(prefix="/slots", tags=["slots"], dependencies=[Depends(get_current_user)])
 
 
 # Adapted unified slot search endpoint over clinic appointment/service-appointment availability contracts.

@@ -5,12 +5,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_db
 from app.schemas import PaginatedResponse
 from app.schemas.scm_trainer import TrainerAvailabilityResponse, TrainerDetailResponse, TrainerSummary
 from app.services.svc_trainer import TrainerService
 
-router = APIRouter(prefix="/trainers", tags=["trainers"])
+# Authentication is required so the request is scoped to the caller's company
+# (the dependency also establishes the tenant filter on the DB session).
+router = APIRouter(prefix="/trainers", tags=["trainers"], dependencies=[Depends(get_current_user)])
 
 
 # Adapted from clinic GetProfessionalsByPrevision listing with mapped filter names.

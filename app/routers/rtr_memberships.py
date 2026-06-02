@@ -8,7 +8,8 @@ from app.models import User
 from app.schemas.scm_membership import CurrentMembershipResponse, MembershipPlanDetailResponse, MembershipPlanResponse
 from app.services.svc_membership import MembershipService
 
-router = APIRouter(tags=["memberships"])
+# Auth required so the plan catalogue is scoped to the caller's company.
+router = APIRouter(tags=["memberships"], dependencies=[Depends(get_current_user)])
 
 
 # Adapted clinic prevision concept promoted to gym plan catalog.

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.firebase_auth import verify_firebase_token
 from app.core.db import SessionLocal
+from app.core.tenancy import set_session_company
 from app.models import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -42,4 +43,8 @@ def get_current_user(
 	user = db.scalar(statement)
 	if user is None or not user.is_active:
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+	# Establish the tenant scope for the rest of the request: every subsequent
+	# query on this session is now auto-filtered to the user's company. The
+	# lookup above ran unscoped on purpose -- the company is only known now.
+	set_session_company(db, user.company_id)
 	return user

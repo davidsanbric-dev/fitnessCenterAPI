@@ -16,6 +16,9 @@ class RegisterRequest(APIModel):
     landline_phone: str | None = None
     birth_date: str | None = None
     address: str | None = None
+    # Slug of the TargetCompany the new member belongs to. Optional only when a
+    # single company exists (then it is inferred); required otherwise.
+    company: str | None = None
 
 
 class RegisterResponse(APIModel):

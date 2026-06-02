@@ -40,15 +40,9 @@ class Settings(BaseSettings):
 		}
 	)
 
-	@property
-	def demo_user_credentials(self) -> list[tuple[str, str, str | None]]:
-		"""Returns (role, email, password) tuples from demo_users JSON file.
-
-		The single source of truth for demo users: drives both Firebase account
-		setup and the backend user seed.
-		"""
+	def _load_demo_users(self) -> dict[str, dict[str, str]]:
 		if not self.demo_users:
-			return []
+			return {}
 		import json
 		from pathlib import Path
 
@@ -56,16 +50,36 @@ class Settings(BaseSettings):
 		if not path.is_absolute():
 			path = Path(__file__).resolve().parents[2] / path
 		if not path.exists():
-			return []
-		data = json.loads(path.read_text())
-		result: list[tuple[str, str, str | None]] = []
-		for _group, entries in data.items():
+			return {}
+		return json.loads(path.read_text())
+
+	@property
+	def demo_companies(self) -> dict[str, list[tuple[str, str, str | None]]]:
+		"""Returns {company_slug: [(role, email, password), ...]} from demo_users.
+
+		Preserves the JSON top-level key (the targeted company) so the seed can
+		provision an isolated, identically-shaped data environment per company.
+		"""
+		result: dict[str, list[tuple[str, str, str | None]]] = {}
+		for group, entries in self._load_demo_users().items():
+			members: list[tuple[str, str, str | None]] = []
 			for role_name, credential in entries.items():
 				email, _, password = credential.partition(":")
 				email = email.strip().lower()
 				if email:
-					result.append((role_name, email, password.strip() or None))
+					members.append((role_name, email, password.strip() or None))
+			result[group] = members
 		return result
+
+	@property
+	def demo_user_credentials(self) -> list[tuple[str, str, str | None]]:
+		"""Returns (role, email, password) tuples from demo_users JSON file.
+
+		The single source of truth for demo users: drives both Firebase account
+		setup and the backend user seed. Flattens across companies (callers here
+		only need the credential, not the company key).
+		"""
+		return [member for members in self.demo_companies.values() for member in members]
 
 
 @lru_cache(maxsize=1)

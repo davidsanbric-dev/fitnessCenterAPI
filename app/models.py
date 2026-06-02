@@ -57,6 +57,25 @@ class TimestampMixin:
 	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class TenantMixin:
+	# Per-targeted-company discriminator. Every row belongs to exactly one
+	# TargetCompany so each company recruiter sees an isolated data environment.
+	# Reads are auto-scoped and inserts auto-stamped by app.core.tenancy.
+	company_id: Mapped[int] = mapped_column(ForeignKey("target_companies.id"), index=True)
+
+
+class TargetCompany(TimestampMixin, Base):
+	# The company targeted for the job application. Its slug is the top-level key
+	# in credentials/demo_users.json (e.g. "otrofy"); the unique admin/member
+	# credential pair its recruiters sign in with scopes them to this company.
+	__tablename__ = "target_companies"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True)
+	slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+	name: Mapped[str] = mapped_column(String(150))
+	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Role(Base):
 	__tablename__ = "roles"
 
@@ -68,7 +87,7 @@ class Role(Base):
 
 
 # Adapted from clinic Patient account context -> gym authenticated User.
-class User(TimestampMixin, Base):
+class User(TenantMixin, TimestampMixin, Base):
 	__tablename__ = "users"
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -84,7 +103,7 @@ class User(TimestampMixin, Base):
 	membership: Mapped[MemberMembership | None] = relationship(back_populates="user", uselist=False)
 
 
-class MemberProfile(Base):
+class MemberProfile(TenantMixin, Base):
 	# Adapted from clinic Patient demographic/contact fields -> gym Member profile fields.
 	__tablename__ = "member_profiles"
 
@@ -103,12 +122,15 @@ class MemberProfile(Base):
 	user: Mapped[User] = relationship(back_populates="profile")
 
 
-class Location(Base):
+class Location(TenantMixin, Base):
 	# Adapted from clinic Branch/Sucursal -> gym Location/Facility.
 	__tablename__ = "locations"
+	__table_args__ = (
+		UniqueConstraint("company_id", "location_code", name="uq_location_company_code"),
+	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	location_code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+	location_code: Mapped[str] = mapped_column(String(50), index=True)
 	name: Mapped[str] = mapped_column(String(120))
 
 	trainers: Mapped[list[Trainer]] = relationship(back_populates="location")
@@ -118,12 +140,15 @@ class Location(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="location")
 
 
-class Discipline(Base):
+class Discipline(TenantMixin, Base):
 	# Adapted from clinic Specialty/Especialidad -> gym Discipline.
 	__tablename__ = "disciplines"
+	__table_args__ = (
+		UniqueConstraint("company_id", "discipline_code", name="uq_discipline_company_code"),
+	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	discipline_code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+	discipline_code: Mapped[str] = mapped_column(String(50), index=True)
 	name: Mapped[str] = mapped_column(String(120), index=True)
 	description: Mapped[str | None] = mapped_column(Text, nullable=True)
 	icon_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -133,12 +158,15 @@ class Discipline(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="discipline")
 
 
-class Trainer(Base):
+class Trainer(TenantMixin, Base):
 	# Adapted from clinic Professional/Profesional -> gym Trainer.
 	__tablename__ = "trainers"
+	__table_args__ = (
+		UniqueConstraint("company_id", "trainer_code", name="uq_trainer_company_code"),
+	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	trainer_code: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+	trainer_code: Mapped[int] = mapped_column(Integer, index=True)
 	full_name: Mapped[str] = mapped_column(String(150), index=True)
 	bio: Mapped[str | None] = mapped_column(Text, nullable=True)
 	photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -156,7 +184,7 @@ class Trainer(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="trainer")
 
 
-class ClassCategory(Base):
+class ClassCategory(TenantMixin, Base):
 	# Adapted from clinic Capabilities query type "1" (Groups) -> gym ClassCategory.
 	__tablename__ = "class_categories"
 
@@ -174,7 +202,7 @@ class ClassCategory(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="category")
 
 
-class ClassSubcategory(Base):
+class ClassSubcategory(TenantMixin, Base):
 	# Adapted from clinic Capabilities query type "2" (Subgroups) -> gym ClassSubcategory.
 	__tablename__ = "class_subcategories"
 
@@ -186,7 +214,7 @@ class ClassSubcategory(Base):
 	class_types: Mapped[list[ClassType]] = relationship(back_populates="subcategory")
 
 
-class ClassType(Base):
+class ClassType(TenantMixin, Base):
 	# Adapted from clinic Service/Prestacion and Capabilities query type "3" -> gym ClassType.
 	__tablename__ = "class_types"
 
@@ -204,7 +232,7 @@ class ClassType(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="class_type")
 
 
-class Slot(Base):
+class Slot(TenantMixin, Base):
 	# Adapted from clinic available appointments/service appointments DTOs -> gym Slot availability.
 	__tablename__ = "slots"
 	__table_args__ = (
@@ -229,7 +257,7 @@ class Slot(Base):
 	bookings: Mapped[list[Booking]] = relationship(back_populates="slot")
 
 
-class Booking(Base):
+class Booking(TenantMixin, Base):
 	# Adapted from clinic Appointment/Cita aggregate -> gym Booking aggregate.
 	__tablename__ = "bookings"
 
@@ -264,12 +292,15 @@ class Booking(Base):
 	location: Mapped[Location | None] = relationship(back_populates="bookings")
 
 
-class MembershipPlan(Base):
+class MembershipPlan(TenantMixin, Base):
 	# Adapted from clinic Prevision/HealthInsurance filter -> gym first-class MembershipPlan entity.
 	__tablename__ = "membership_plans"
+	__table_args__ = (
+		UniqueConstraint("company_id", "name", name="uq_membership_plan_company_name"),
+	)
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	name: Mapped[str] = mapped_column(String(120), unique=True)
+	name: Mapped[str] = mapped_column(String(120))
 	description: Mapped[str | None] = mapped_column(Text, nullable=True)
 	price: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
 	duration_days: Mapped[int] = mapped_column(Integer, default=30)
@@ -288,7 +319,7 @@ class MembershipPlan(Base):
 	)
 
 
-class MemberMembership(Base):
+class MemberMembership(TenantMixin, Base):
 	# Gym extension mapped from clinic prevision linkage semantics -> member active membership record.
 	__tablename__ = "member_memberships"
 
@@ -304,7 +335,7 @@ class MemberMembership(Base):
 	plan: Mapped[MembershipPlan] = relationship(back_populates="member_memberships")
 
 
-class Notification(TimestampMixin, Base):
+class Notification(TenantMixin, TimestampMixin, Base):
 	# Gym-specific extension with lifecycle events derived from adapted booking flow.
 	__tablename__ = "notifications"
 
@@ -319,7 +350,7 @@ class Notification(TimestampMixin, Base):
 	user: Mapped[User] = relationship(back_populates="notifications")
 
 
-class DeviceToken(Base):
+class DeviceToken(TenantMixin, Base):
 	# Gym-specific extension for mobile push delivery tokens.
 	__tablename__ = "device_tokens"
 

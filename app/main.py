@@ -9,9 +9,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.db import Base, engine
 from app.core.migrations import apply_migrations
+from app.core.seed import seed_reference_data
 from app.routers import api_router
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def _seed_reference_data() -> None:
+    """Run the idempotent per-company seed on every startup.
+
+    Migrations only run once (Alembic records them as applied), so this is what
+    picks up companies added to DEMO_USERS after the initial migration -- no DB
+    recreation needed. Best-effort: never blocks startup.
+    """
+    try:
+        with engine.begin() as connection:
+            seed_reference_data(connection)
+    except Exception:
+        logger.warning("Reference data seed skipped (see traceback).", exc_info=True)
 
 
 def _setup_demo_firebase_accounts() -> None:
@@ -33,6 +48,7 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
     _setup_demo_firebase_accounts()
     apply_migrations()
+    _seed_reference_data()
     yield
 
 

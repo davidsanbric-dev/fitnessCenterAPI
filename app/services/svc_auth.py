@@ -3,15 +3,18 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.client_origin import ClientOrigin
 from app.core.config import settings
 from app.core.firebase_auth import set_firebase_custom_claims
+from app.core.tenancy import set_session_company
 from app.models import (
     MemberMembership,
     MemberProfile,
     MembershipPlan,
+    TargetCompany,
     User,
 )
 from app.repositories.rps_user import UserRepository
@@ -24,10 +27,32 @@ class AuthService:
         self.db = db
         self.user_repository = UserRepository(db)
 
+    def _resolve_registration_company(self, slug: str | None) -> TargetCompany:
+        # Self-registration carries no logged-in tenant, so the target company
+        # must be resolved explicitly. TargetCompany is not tenant-scoped, so
+        # this query is never filtered.
+        companies = list(self.db.scalars(select(TargetCompany)).all())
+        if slug:
+            wanted = slug.strip().lower()
+            for company in companies:
+                if company.slug.lower() == wanted:
+                    return company
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown company")
+        if len(companies) == 1:
+            return companies[0]
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company is required")
+
     def register(self, payload) -> dict:
         # Adapted from clinic RegisterPatient command; provisions the backend record while Firebase owns the credential.
+        # Email uniqueness is global, so this check must run before the tenant is
+        # set (otherwise it would only see the resolved company's users).
         if self.user_repository.get_by_email(payload.email):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+        # Scope the session to the chosen company so the default-plan lookup and
+        # all new rows (user, profile, membership) are confined to it.
+        company = self._resolve_registration_company(getattr(payload, "company", None))
+        set_session_company(self.db, company.id)
 
         user = User(email=str(payload.email))
         birth_date = date.fromisoformat(payload.birth_date) if payload.birth_date else None

@@ -5,11 +5,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_db
 from app.schemas.scm_class_type import ClassPreparationResponse, ClassTypeAvailabilityResponse, ClassTypeDetailResponse
 from app.services.svc_class import ClassService
 
-router = APIRouter(tags=["classes"])
+# Auth required so the class catalogue is scoped to the caller's company.
+router = APIRouter(tags=["classes"], dependencies=[Depends(get_current_user)])
 
 
 # Adapted from clinic GetCapabilities with TipoConsulta="1".

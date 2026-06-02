@@ -5,12 +5,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_db
+from app.core.dependencies import get_current_user, get_db
 from app.schemas import PaginatedResponse
 from app.schemas.scm_discipline import DisciplineAvailabilityResponse, DisciplineDetailResponse, DisciplineSummary
 from app.services.svc_discipline import DisciplineService
 
-router = APIRouter(prefix="/disciplines", tags=["disciplines"])
+# Auth required so disciplines are scoped to the caller's company.
+router = APIRouter(prefix="/disciplines", tags=["disciplines"], dependencies=[Depends(get_current_user)])
 
 
 # Adapted from clinic specialty catalog listing.
