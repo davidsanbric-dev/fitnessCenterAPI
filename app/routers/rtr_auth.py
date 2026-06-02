@@ -83,6 +83,5 @@ def get_user_by_email(
                 ]
                 if item
             ).strip(),
-            "location_codes": [],
         },
     }

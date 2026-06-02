@@ -20,17 +20,10 @@ class Settings(BaseSettings):
 	debug: bool = False
 	database_url: str = Field(...)
 	access_token_expire_minutes: int = 30
-	seed_data: bool = False
 	demo_users: str = Field(default="")
 	firebase_project_id: str | None = None
 	firebase_service_account_path: str | None = None
 	cors_origins: list[str] = Field(default_factory=list)
-	locations: dict[str, str] = Field(
-		default_factory=lambda: {
-			"LOC001": "Downtown Gym",
-			"LOC002": "North Branch",
-		}
-	)
 	booking_statuses: dict[str, str] = Field(
 		default_factory=lambda: {
 			"PENDING": "Pending",

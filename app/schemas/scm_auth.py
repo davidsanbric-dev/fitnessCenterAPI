@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr
 
 from app.schemas import APIModel
 
 
-# Adapted from clinic RegisterPatient/GetPatient authless flow -> gym email/password registration flow.
 class RegisterRequest(APIModel):
     email: EmailStr
-    password: str = Field(min_length=8)
     first_name: str
     paternal_surname: str
     maternal_surname: str

@@ -181,7 +181,6 @@ class AuthService:
                 ]
                 if item
             ).strip(),
-            "location_codes": list(settings.locations.keys()),
         }
 
         display_name = " ".join(

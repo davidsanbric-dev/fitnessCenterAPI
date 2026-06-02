@@ -1,181 +1,140 @@
-from pathlib import Path
+from __future__ import annotations
+
+import argparse
+import random
 import sys
 from datetime import datetime, timedelta
-import random
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+
 from app.core.db import SessionLocal
-from app.models import Location, Discipline, Trainer, ClassCategory, ClassSubcategory, ClassType, Slot
+from app.core.tenancy import set_session_company
+from app.models import ClassType, Location, Slot, TargetCompany, Trainer
+
+_DEFAULT_SLOTS = 50
+# ASG-100 and ASG-200 are reserved by seed.py; start well clear of them.
+_CODE_START = 300
 
 
-def ensure_sample_data(db: Session):
-    """Ensure we have sample data for related entities before generating slots."""
+def _generate_for_company(db, num_slots: int) -> int:
+    """Generate slots for the company currently bound to *db*. Returns count created."""
+    trainers = db.scalars(select(Trainer).where(Trainer.is_active.is_(True))).all()
+    locations = db.scalars(select(Location)).all()
+    class_types = db.scalars(select(ClassType)).all()
 
-    # Check if locations exist
-    if not db.query(Location).first():
-        locations = [
-            Location(location_code="LOC001", name="Downtown Gym"),
-            Location(location_code="LOC002", name="North Branch"),
-        ]
-        db.add_all(locations)
-        print("Created sample locations")
+    if not trainers or not locations:
+        return 0
 
-    # Check if disciplines exist
-    if not db.query(Discipline).first():
-        disciplines = [
-            Discipline(discipline_code="FIT001", name="Fitness", description="General fitness training"),
-            Discipline(discipline_code="YOG001", name="Yoga", description="Yoga classes"),
-            Discipline(discipline_code="PIL001", name="Pilates", description="Pilates training"),
-        ]
-        db.add_all(disciplines)
-        print("Created sample disciplines")
+    # Existing codes for this company (session is already scoped).
+    existing_codes: set[str] = set(
+        db.scalars(
+            select(Slot.slot_assignment_code).where(Slot.slot_assignment_code.isnot(None))
+        ).all()
+    )
+    # Track (trainer_id, slot_datetime) pairs added in this batch so we never
+    # produce an intra-batch duplicate before they're flushed to the DB.
+    booked_pairs: set[tuple[int, datetime]] = set()
 
-    # Check if trainers exist
-    if not db.query(Trainer).first():
-        locations = db.query(Location).all()
-        disciplines = db.query(Discipline).all()
-        trainers = []
-        for i, loc in enumerate(locations):
-            trainer = Trainer(
-                trainer_code=1001 + i,
-                full_name=f"Trainer {i+1}",
-                bio=f"Experienced trainer at {loc.name}",
-                is_active=True,
-                location_id=loc.id,
-            )
-            trainer.disciplines = random.sample(disciplines, k=random.randint(1, 2))
-            trainers.append(trainer)
-        db.add_all(trainers)
-        print("Created sample trainers")
-
-    # Check if class categories exist
-    if not db.query(ClassCategory).first():
-        locations = db.query(Location).all()
-        categories = []
-        for i, loc in enumerate(locations):
-            category = ClassCategory(
-                name=f"Category {i+1}",
-                location_id=loc.id,
-            )
-            categories.append(category)
-        db.add_all(categories)
-        db.commit()  # Commit to get IDs
-
-        # Create subcategories
-        subcategories = []
-        for cat in categories:
-            subcat = ClassSubcategory(
-                category_id=cat.id,
-                name=f"Subcategory for {cat.name}",
-            )
-            subcategories.append(subcat)
-        db.add_all(subcategories)
-        db.commit()
-
-        # Create class types
-        class_types = []
-        for subcat in subcategories:
-            ct = ClassType(
-                subcategory_id=subcat.id,
-                location_id=subcat.category.location_id,
-                name=f"Class Type for {subcat.name}",
-                schedule_type="GROUP",
-            )
-            class_types.append(ct)
-        db.add_all(class_types)
-        print("Created sample class categories, subcategories, and types")
-
-    db.commit()
-
-
-def generate_slots(db: Session, num_slots: int = 50):
-    """Generate sample slot records with proper integrity."""
-
-    # Get existing data
-    locations = db.query(Location).all()
-    trainers = db.query(Trainer).all()
-    disciplines = db.query(Discipline).all()
-    class_types = db.query(ClassType).all()
-
-    if not locations or not trainers:
-        print("No locations or trainers found. Run ensure_sample_data first.")
-        return
-
-    # Find the latest slot datetime in the database
-    latest_slot = db.query(Slot.slot_datetime).order_by(Slot.slot_datetime.desc()).first()
-    if latest_slot:
-        start_date = latest_slot[0].replace(hour=6, minute=0, second=0, microsecond=0)
-    else:
-        # If no slots exist, start from now
-        start_date = datetime.now().replace(hour=6, minute=0, second=0, microsecond=0)
-
-    # Generate slots for the next 7 days from the latest record
-    # end_date = start_date + timedelta(days=7)  # Not needed since we generate randomly within 7 days
-
-    slots_created = 0
+    start = datetime.utcnow().replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    counter = _CODE_START
+    created = 0
     attempts = 0
-    max_attempts = num_slots * 10  # Prevent infinite loops
-    slot_code_counter = 100  # Start from 100 like in the example
 
-    while slots_created < num_slots and attempts < max_attempts:
+    while created < num_slots and attempts < num_slots * 10:
         attempts += 1
 
-        # Random slot time between 6 AM and 10 PM for the next 7 days
-        slot_datetime = start_date + timedelta(
-            days=random.randint(0, 6),
-            hours=random.randint(0, 16),  # 6AM to 10PM
-            minutes=random.choice([0, 30])  # Half-hour slots
+        slot_dt = start + timedelta(
+            days=random.randint(0, 13),
+            hours=random.randint(0, 16),
+            minutes=random.choice([0, 30]),
         )
-
         trainer = random.choice(trainers)
+
+        pair = (trainer.id, slot_dt)
+        if pair in booked_pairs:
+            continue
+
+        # Check the persisted rows for the same unique constraint.
+        if db.scalar(
+            select(Slot).where(
+                Slot.trainer_id == trainer.id,
+                Slot.slot_datetime == slot_dt,
+            )
+        ):
+            continue
+
         location = trainer.location or random.choice(locations)
-        discipline = random.choice(trainer.disciplines) if trainer.disciplines else random.choice(disciplines)
+        discipline = random.choice(trainer.disciplines) if trainer.disciplines else None
         class_type = random.choice(class_types) if class_types else None
 
-        # Check for unique constraint violation (same trainer, same datetime)
-        existing = db.query(Slot).filter(
-            Slot.trainer_id == trainer.id,
-            Slot.slot_datetime == slot_datetime
-        ).first()
+        code = f"ASG-{counter}"
+        while code in existing_codes:
+            counter += 1
+            code = f"ASG-{counter}"
+        existing_codes.add(code)
+        counter += 1
 
-        if existing:
-            continue  # Skip this slot, try another
-
-        # Create the slot
-        slot = Slot(
-            slot_datetime=slot_datetime,
-            location_id=location.id,
-            trainer_id=trainer.id,
-            discipline_id=discipline.id,
-            class_type_id=class_type.id if class_type else None,
-            is_online=random.choice([True, False]),
-            is_available=True,
-            slot_assignment_code=f"ASG-{slot_code_counter}",
-            schedule_type="REGULAR",
+        db.add(
+            Slot(
+                slot_datetime=slot_dt,
+                location_id=location.id,
+                trainer_id=trainer.id,
+                discipline_id=discipline.id if discipline else None,
+                class_type_id=class_type.id if class_type else None,
+                is_online=random.choice([True, False]),
+                is_available=True,
+                slot_assignment_code=code,
+                schedule_type="GROUP",
+            )
         )
+        booked_pairs.add(pair)
+        created += 1
 
-        db.add(slot)
-        db.commit()  # Commit each slot individually to avoid batch insert conflicts
-        slots_created += 1
-        slot_code_counter += 1  # Increment for next slot
+    db.commit()
+    return created
 
 
-def main():
+def main(num_slots: int = _DEFAULT_SLOTS) -> None:
     db = SessionLocal()
     try:
-        ensure_sample_data(db)
-        generate_slots(db, num_slots=50)
-        print("Slot generation completed successfully!")
-    except Exception as e:
-        print(f"Error: {e}")
+        # Collect company info before entering the scoped loop so that attribute
+        # access on expired ORM objects after each commit is never needed.
+        companies = [
+            (row.id, row.slug)
+            for row in db.scalars(
+                select(TargetCompany).where(TargetCompany.is_active.is_(True))
+            ).all()
+        ]
+
+        if not companies:
+            print("No active companies found — run migrations and seed first.")
+            return
+
+        for company_id, slug in companies:
+            set_session_company(db, company_id)
+            count = _generate_for_company(db, num_slots)
+            print(f"[{slug}] {count}/{num_slots} slots created.")
+
+    except Exception:
         db.rollback()
+        raise
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Generate sample slots for all active companies."
+    )
+    parser.add_argument(
+        "--slots",
+        type=int,
+        default=_DEFAULT_SLOTS,
+        help=f"Slots to generate per company (default: {_DEFAULT_SLOTS})",
+    )
+    main(num_slots=parser.parse_args().slots)
