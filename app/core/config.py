@@ -67,16 +67,6 @@ class Settings(BaseSettings):
 					result.append((role_name, email, password.strip() or None))
 		return result
 
-	@property
-	def admin_email_addresses(self) -> list[str]:
-		"""Bare admin emails for role/permission resolution."""
-		return [email for role, email, _ in self.demo_user_credentials if role == "admin"]
-
-	@property
-	def manager_email_addresses(self) -> list[str]:
-		"""Bare manager emails for role/permission resolution."""
-		return [email for role, email, _ in self.demo_user_credentials if role == "manager"]
-
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

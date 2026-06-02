@@ -59,14 +59,14 @@ def get_user_by_email(
     db: Session = Depends(get_db),
 ):
     auth_service = AuthService(db)
-    if not auth_service.is_admin_or_manager(current_user.email):
+    if not auth_service.is_admin_or_manager(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this resource")
 
     user = auth_service.user_repository.get_by_email(email.strip().lower())
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    role, permissions = auth_service.resolve_role_permissions(user.email)
+    role, permissions = auth_service.resolve_role_permissions(user)
     profile = user.profile
     return {
         "id": user.id,

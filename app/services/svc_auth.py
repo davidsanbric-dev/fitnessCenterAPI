@@ -72,44 +72,45 @@ class AuthService:
         updated = self.user_repository.update_profile(user, payload)
         return serialize_user(updated)
 
-    def resolve_role_permissions(self, email: str) -> tuple[str, list[str]]:
-        normalized_email = email.strip().lower()
-        admin_emails = set(settings.admin_email_addresses)
-        manager_emails = set(settings.manager_email_addresses)
+    # Permission sets keyed by the role name stored in the ``roles`` table. The
+    # role catalogue and the per-user assignment both live in the database (see
+    # the seed migration); this only maps a resolved role name to its grants.
+    _PERMISSIONS_BY_ROLE: dict[str, list[str]] = {
+        "admin": [
+            "admin.dashboard.read",
+            "bookings.read",
+            "bookings.write",
+            "schedule.read",
+            "trainers.read",
+            "disciplines.read",
+            "memberships.read",
+            "notifications.read",
+        ],
+        "manager": [
+            "admin.dashboard.read",
+            "bookings.read",
+            "schedule.read",
+            "trainers.read",
+            "disciplines.read",
+            "memberships.read",
+        ],
+        "member": ["member.home.read", "bookings.read", "bookings.write"],
+    }
 
-        if normalized_email in admin_emails:
-            return (
-                "admin",
-                [
-                    "admin.dashboard.read",
-                    "bookings.read",
-                    "bookings.write",
-                    "schedule.read",
-                    "trainers.read",
-                    "disciplines.read",
-                    "memberships.read",
-                    "notifications.read",
-                ],
-            )
+    _STAFF_ROLES = frozenset({"admin", "manager"})
 
-        if normalized_email in manager_emails:
-            return (
-                "manager",
-                [
-                    "admin.dashboard.read",
-                    "bookings.read",
-                    "schedule.read",
-                    "trainers.read",
-                    "disciplines.read",
-                    "memberships.read",
-                ],
-            )
+    def resolve_role_permissions(self, user: User) -> tuple[str, list[str]]:
+        # Role is sourced from the database (``users.role_id`` -> ``roles.name``),
+        # not from config. Editing demo_users.json no longer changes who is an
+        # admin at runtime; role assignment is durable DB state. Users without an
+        # assigned role (e.g. self-registered members) default to "member".
+        role_name = (user.role.name if user.role else "") or "member"
+        permissions = self._PERMISSIONS_BY_ROLE.get(role_name, self._PERMISSIONS_BY_ROLE["member"])
+        return role_name, permissions
 
-        return ("member", ["member.home.read", "bookings.read", "bookings.write"])
-
-    def is_admin_or_manager(self, email: str) -> bool:
-        role, _ = self.resolve_role_permissions(email)
-        return role in {"admin", "manager"}
+    def is_admin_or_manager(self, user: User) -> bool:
+        role, _ = self.resolve_role_permissions(user)
+        return role in self._STAFF_ROLES
 
     # Role buckets each deployed application is allowed to sign in as. The mobile
     # app serves members; the web app serves staff (admin/manager).
@@ -132,7 +133,7 @@ class AuthService:
         if user is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User authenticated with Firebase but not provisioned in backend")
 
-        role, permissions = self.resolve_role_permissions(user.email)
+        role, permissions = self.resolve_role_permissions(user)
 
         # Enforce that the account's role matches the application it is signing in
         # from (members -> mobile, staff -> web). This is a product/UX boundary,

@@ -5,7 +5,7 @@ from collections.abc import Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.firebase_auth import verify_firebase_token
 from app.core.db import SessionLocal
@@ -34,7 +34,11 @@ def get_current_user(
 	if not email:
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing email")
 
-	statement = select(User).where(func.lower(User.email) == email)
+	statement = (
+		select(User)
+		.options(selectinload(User.role))
+		.where(func.lower(User.email) == email)
+	)
 	user = db.scalar(statement)
 	if user is None or not user.is_active:
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")

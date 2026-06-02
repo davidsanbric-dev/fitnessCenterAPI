@@ -71,7 +71,7 @@ cp .env.example .env
 	- Behavior: verifies the token, resolves backend role/permissions, and sets the
 	  Firebase custom claims (`app_role`, `app_display_name`, ...) used by sessions.
 - `GET /api/v1/users/by-email?email=<email>`
-	- Requires admin/manager role (resolved from configured email lists)
+	- Requires admin/manager role (resolved from the database: `users.role_id` → `roles.name`)
 
 ### Admin dashboard endpoints (additive)
 

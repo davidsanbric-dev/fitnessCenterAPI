@@ -223,8 +223,11 @@ def _seed_roles_and_demo_users() -> None:
 
 	bind = op.get_bind()
 
-	# Seed default roles before users (name is unique; uid only set on first insert)
-	for role_name in ("admin", "member"):
+	# Seed the full role catalogue before users (name is unique; uid only set on
+	# first insert). Roles are the runtime source of truth for authorization, so
+	# the catalogue must cover every role the API can resolve (see
+	# AuthService._PERMISSIONS_BY_ROLE), even those no demo user currently uses.
+	for role_name in ("admin", "manager", "member"):
 		bind.execute(
 			sa.text(
 				"INSERT INTO roles (uid, name) VALUES (:uid, :name) "

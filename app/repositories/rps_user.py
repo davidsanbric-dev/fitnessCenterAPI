@@ -19,6 +19,7 @@ class UserRepository:
         statement = (
             select(User)
             .options(
+                selectinload(User.role),
                 selectinload(User.profile),
                 selectinload(User.membership).selectinload(MemberMembership.plan),
             )
@@ -30,6 +31,7 @@ class UserRepository:
         statement = (
             select(User)
             .options(
+                selectinload(User.role),
                 selectinload(User.profile),
                 selectinload(User.membership).selectinload(MemberMembership.plan),
             )
