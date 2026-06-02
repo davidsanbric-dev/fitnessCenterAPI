@@ -209,29 +209,42 @@ def upgrade() -> None:
 		"""
 	)
 
-	# Firebase-linked demo users + profiles are seeded from ADMIN_EMAILS (the single
-	# source of truth shared with scripts/set_and_verify_demo_users.py).
-	_seed_demo_users()
+	# Roles and Firebase-linked demo users + profiles are seeded from DEMO_USERS
+	# (the single source of truth shared with scripts/set_and_verify_demo_users.py).
+	_seed_roles_and_demo_users()
 
 
-def _seed_demo_users() -> None:
+def _seed_roles_and_demo_users() -> None:
+	import uuid
+
 	import sqlalchemy as sa
 
 	from app.core.config import settings
 
 	bind = op.get_bind()
-	for email, _password in settings.admin_credentials:
+
+	# Seed default roles before users (name is unique; uid only set on first insert)
+	for role_name in ("admin", "member"):
+		bind.execute(
+			sa.text(
+				"INSERT INTO roles (uid, name) VALUES (:uid, :name) "
+				"ON CONFLICT (name) DO NOTHING"
+			),
+			{"uid": str(uuid.uuid4()), "name": role_name},
+		)
+
+	for role_name, email, _password in settings.demo_user_credentials:
 		local_part = email.split("@", 1)[0]
 		first_name = (local_part[:1].upper() + local_part[1:]) if local_part else "Demo"
 
-		# Firebase-linked user (email is unique)
+		# Firebase-linked user with role assignment (email is unique)
 		bind.execute(
 			sa.text(
-				"INSERT INTO users (email, is_active, created_at) "
-				"VALUES (:email, TRUE, CURRENT_TIMESTAMP) "
+				"INSERT INTO users (email, is_active, created_at, role_id) "
+				"SELECT :email, TRUE, CURRENT_TIMESTAMP, r.id FROM roles r WHERE r.name = :role "
 				"ON CONFLICT (email) DO NOTHING"
 			),
-			{"email": email},
+			{"email": email, "role": role_name},
 		)
 
 		# Member profile for the demo user (user_id is unique)

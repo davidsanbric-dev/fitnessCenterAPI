@@ -57,6 +57,16 @@ class TimestampMixin:
 	created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class Role(Base):
+	__tablename__ = "roles"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True)
+	uid: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+	name: Mapped[str] = mapped_column(String(50), unique=True)
+
+	users: Mapped[list[User]] = relationship(back_populates="role")
+
+
 # Adapted from clinic Patient account context -> gym authenticated User.
 class User(TimestampMixin, Base):
 	__tablename__ = "users"
@@ -64,7 +74,9 @@ class User(TimestampMixin, Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 	email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+	role_id: Mapped[int | None] = mapped_column(ForeignKey("roles.id"), nullable=True)
 
+	role: Mapped[Role | None] = relationship(back_populates="users")
 	profile: Mapped[MemberProfile | None] = relationship(back_populates="user", uselist=False)
 	bookings: Mapped[list[Booking]] = relationship(back_populates="user")
 	notifications: Mapped[list[Notification]] = relationship(back_populates="user")

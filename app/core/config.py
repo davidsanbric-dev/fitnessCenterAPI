@@ -21,8 +21,7 @@ class Settings(BaseSettings):
 	database_url: str = Field(...)
 	access_token_expire_minutes: int = 30
 	seed_data: bool = False
-	admin_emails: list[str] = Field(default_factory=list)
-	manager_emails: list[str] = Field(default_factory=list)
+	demo_users: str = Field(default="")
 	firebase_project_id: str | None = None
 	firebase_service_account_path: str | None = None
 	cors_origins: list[str] = Field(default_factory=list)
@@ -42,34 +41,39 @@ class Settings(BaseSettings):
 	)
 
 	@property
-	def admin_credentials(self) -> list[tuple[str, str | None]]:
-		"""Demo admin accounts from ADMIN_EMAILS, each entry as 'email[:password]'.
+	def demo_user_credentials(self) -> list[tuple[str, str, str | None]]:
+		"""Returns (role, email, password) tuples from demo_users JSON file.
 
 		The single source of truth for demo users: drives both Firebase account
-		setup and the backend user seed. Password is optional (None when absent).
+		setup and the backend user seed.
 		"""
-		return _parse_credentials(self.admin_emails)
+		if not self.demo_users:
+			return []
+		import json
+		from pathlib import Path
+
+		path = Path(self.demo_users)
+		if not path.exists():
+			return []
+		data = json.loads(path.read_text())
+		result: list[tuple[str, str, str | None]] = []
+		for _group, entries in data.items():
+			for role_name, credential in entries.items():
+				email, _, password = credential.partition(":")
+				email = email.strip().lower()
+				if email:
+					result.append((role_name, email, password.strip() or None))
+		return result
 
 	@property
 	def admin_email_addresses(self) -> list[str]:
-		"""Bare admin emails (password stripped) for role/permission resolution."""
-		return [email for email, _ in self.admin_credentials]
+		"""Bare admin emails for role/permission resolution."""
+		return [email for role, email, _ in self.demo_user_credentials if role == "admin"]
 
 	@property
 	def manager_email_addresses(self) -> list[str]:
-		"""Bare manager emails (password stripped) for role/permission resolution."""
-		return [email for email, _ in _parse_credentials(self.manager_emails)]
-
-
-def _parse_credentials(items: list[str]) -> list[tuple[str, str | None]]:
-	credentials: list[tuple[str, str | None]] = []
-	for item in items:
-		email, _, password = item.partition(":")
-		email = email.strip().lower()
-		if not email:
-			continue
-		credentials.append((email, password.strip() or None))
-	return credentials
+		"""Bare manager emails for role/permission resolution."""
+		return [email for role, email, _ in self.demo_user_credentials if role == "manager"]
 
 
 @lru_cache(maxsize=1)
