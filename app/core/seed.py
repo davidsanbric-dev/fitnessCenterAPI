@@ -184,7 +184,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
-	SELECT :cid, (NOW() + INTERVAL '1 day' + INTERVAL '7 hours')::timestamptz,
+	SELECT :cid, date_trunc('minute', (NOW() + INTERVAL '1 day' + INTERVAL '7 hours')::timestamptz),
 	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-100', 'GROUP'
 	FROM locations l
 	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1001
@@ -201,7 +201,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
-	SELECT :cid, (NOW() + INTERVAL '2 days' + INTERVAL '18 hours')::timestamptz,
+	SELECT :cid, date_trunc('minute', (NOW() + INTERVAL '2 days' + INTERVAL '18 hours')::timestamptz),
 	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-200', 'GROUP'
 	FROM locations l
 	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1002

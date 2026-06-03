@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -33,13 +33,17 @@ class BookingRepository:
         if normalized_discipline.isdigit():
             discipline_id = int(normalized_discipline)
 
+        # Bookings carry minute resolution (date + HH:MM), so match the slot
+        # within its minute rather than on an exact timestamp, which may hold
+        # sub-minute precision.
         statement = (
             select(Slot)
             .join(Slot.location)
             .join(Slot.trainer)
             .join(Slot.discipline)
             .where(
-                Slot.slot_datetime == booking_datetime,
+                Slot.slot_datetime >= booking_datetime,
+                Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
                 Location.location_code == location_code,
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
@@ -61,13 +65,15 @@ class BookingRepository:
         slot_assignment_code: str,
     ) -> Slot | None:
         # Adapted slot resolution for ScheduleServiceAppointment-style bookings.
+        # Match within the booking's minute (see get_slot_for_trainer_booking).
         statement = (
             select(Slot)
             .join(Slot.location)
             .join(Slot.trainer)
             .join(Slot.class_type)
             .where(
-                Slot.slot_datetime == booking_datetime,
+                Slot.slot_datetime >= booking_datetime,
+                Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
                 Location.location_code == location_code,
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
