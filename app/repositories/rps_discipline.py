@@ -49,7 +49,6 @@ class DisciplineRepository:
         date_from: datetime,
         date_to: datetime,
         trainer_id: int | None = None,
-        is_online: bool | None = None,
         location_code: str | None = None,
     ) -> list[Slot]:
         # Adapted from clinic specialty slot search window.
@@ -65,8 +64,6 @@ class DisciplineRepository:
         )
         if trainer_id is not None:
             statement = statement.where(Slot.trainer_id == trainer_id)
-        if is_online is not None:
-            statement = statement.where(Slot.is_online == is_online)
         if location_code is not None:
             statement = statement.join(Slot.location).where(Location.location_code == location_code)
         return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())

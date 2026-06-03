@@ -26,7 +26,6 @@ class BookingRepository:
         location_code: str,
         trainer_code: int,
         discipline_code: str,
-        is_online: bool,
     ) -> Slot | None:
         # Adapted slot resolution for ScheduleAppointment-style bookings.
         normalized_discipline = discipline_code.strip()
@@ -42,7 +41,6 @@ class BookingRepository:
             .where(
                 Slot.slot_datetime == booking_datetime,
                 Slot.is_available.is_(True),
-                Slot.is_online == is_online,
                 Location.location_code == location_code,
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
             )
@@ -103,7 +101,6 @@ class BookingRepository:
         date_to: datetime | None = None,
         trainer_id: int | None = None,
         discipline_id: int | None = None,
-        is_online: bool | None = None,
         location_code: str | None = None,
         page: int = 1,
         page_size: int = 20,
@@ -125,9 +122,6 @@ class BookingRepository:
         if discipline_id is not None:
             statement = statement.where(Booking.discipline_id == discipline_id)
             count_statement = count_statement.where(Booking.discipline_id == discipline_id)
-        if is_online is not None:
-            statement = statement.where(Booking.is_online == is_online)
-            count_statement = count_statement.where(Booking.is_online == is_online)
         if location_code is not None:
             statement = statement.join(Booking.location).where(Location.location_code == location_code)
             count_statement = count_statement.join(Booking.location).where(Location.location_code == location_code)
@@ -181,7 +175,6 @@ class BookingRepository:
         date_to: datetime | None = None,
         trainer_id: int | None = None,
         discipline_id: int | None = None,
-        is_online: bool | None = None,
         location_code: str | None = None,
         page: int = 1,
         page_size: int = 20,
@@ -212,9 +205,6 @@ class BookingRepository:
         if discipline_id is not None:
             statement = statement.where(Booking.discipline_id == discipline_id)
             count_statement = count_statement.where(Booking.discipline_id == discipline_id)
-        if is_online is not None:
-            statement = statement.where(Booking.is_online == is_online)
-            count_statement = count_statement.where(Booking.is_online == is_online)
         if location_code is not None:
             statement = statement.join(Booking.location).where(Location.location_code == location_code)
             count_statement = count_statement.join(Booking.location).where(Location.location_code == location_code)

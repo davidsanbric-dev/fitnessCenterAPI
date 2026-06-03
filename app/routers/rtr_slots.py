@@ -26,7 +26,6 @@ def search_slots(
     class_type_id: int | None = None,
     query_type: str | None = None,
     session_duration_minutes: int | None = None,
-    is_online: bool | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -41,7 +40,6 @@ def search_slots(
         class_type_id=class_type_id,
         query_type=query_type,
         session_duration_minutes=session_duration_minutes,
-        is_online=is_online,
         page=page,
         page_size=page_size,
     )

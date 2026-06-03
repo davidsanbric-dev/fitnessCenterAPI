@@ -31,7 +31,6 @@ class TrainerService:
             {
                 "slot_datetime": slot.slot_datetime,
                 "location_id": slot.location_id,
-                "is_online": slot.is_online,
                 "is_available": slot.is_available,
                 "discipline_name": slot.discipline.name if slot.discipline else None,
             }
@@ -67,7 +66,6 @@ class TrainerService:
                 {
                     "slot_datetime": slot.slot_datetime,
                     "location_id": slot.location_id,
-                    "is_online": slot.is_online,
                     "is_available": slot.is_available,
                     "discipline_name": slot.discipline.name if slot.discipline else None,
                 }

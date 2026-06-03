@@ -36,8 +36,6 @@ def serialize_booking(booking: Booking) -> dict:
         "booking_datetime": booking.booking_datetime,
         "scheduled_at": booking.scheduled_at,
         "session_duration_minutes": booking.session_duration_minutes,
-        "is_online": booking.is_online,
-        "online_session_url": booking.online_session_url,
         "preparation_info": booking.preparation_info,
         "has_pdf": booking.has_pdf,
         "pdf_code": booking.pdf_code,
@@ -96,7 +94,6 @@ def serialize_slot(slot: Slot) -> dict:
     return {
         "slot_datetime": slot.slot_datetime,
         "location_id": slot.location_id,
-        "is_online": slot.is_online,
         "slot_assignment_code": slot.slot_assignment_code,
         "schedule_type": slot.schedule_type,
         "is_available": slot.is_available,

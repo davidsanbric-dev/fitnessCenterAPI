@@ -19,7 +19,6 @@ class SlotResponse(APIModel):
     # Unified adapted slot projection (appointments + service appointments).
     slot_datetime: datetime
     location_id: int | None = None
-    is_online: bool
     slot_assignment_code: str | None = None
     schedule_type: str | None = None
     is_available: bool

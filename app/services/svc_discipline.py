@@ -77,20 +77,18 @@ class DisciplineService:
         date_from: datetime,
         date_to: datetime,
         trainer_id: int | None,
-        is_online: bool | None,
         location_code: str | None,
     ) -> dict:
         discipline = self.repository.get_discipline(discipline_id)
         if discipline is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
-        slots = self.repository.get_availability(discipline_id, date_from, date_to, trainer_id, is_online, location_code)
+        slots = self.repository.get_availability(discipline_id, date_from, date_to, trainer_id, location_code)
         return {
             "discipline_id": discipline_id,
             "slots": [
                 {
                     "slot_datetime": slot.slot_datetime,
                     "location_id": slot.location_id,
-                    "is_online": slot.is_online,
                     "trainer": {
                         "trainer_id": slot.trainer.id,
                         "full_name": slot.trainer.full_name,

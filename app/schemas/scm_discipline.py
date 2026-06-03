@@ -35,7 +35,6 @@ class DisciplineAvailabilityItem(APIModel):
     # Adapted slot shape from clinic GetAvailableAppointments.
     slot_datetime: datetime
     location_id: int | None = None
-    is_online: bool
     trainer: DisciplineAvailabilityTrainer
 
 

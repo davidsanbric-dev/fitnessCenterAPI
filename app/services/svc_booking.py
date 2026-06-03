@@ -30,7 +30,6 @@ class BookingService:
             payload.location_code,
             payload.trainer_code,
             payload.discipline_code,
-            payload.is_online,
         )
         if slot is None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is not available")
@@ -40,8 +39,6 @@ class BookingService:
             booking_status="CONFIRMED",
             booking_datetime=booking_datetime,
             session_duration_minutes=payload.session_duration_minutes,
-            is_online=payload.is_online,
-            online_session_url="https://gym.example.com/session" if payload.is_online else None,
             preparation_info=slot.class_type.preparation_info if slot.class_type else None,
             has_pdf=bool(slot.class_type and slot.class_type.pdf_code),
             pdf_code=slot.class_type.pdf_code if slot.class_type else None,
@@ -80,8 +77,6 @@ class BookingService:
             booking_status="CONFIRMED",
             booking_datetime=booking_datetime,
             session_duration_minutes=60,
-            is_online=slot.is_online,
-            online_session_url="https://gym.example.com/session" if slot.is_online else None,
             preparation_info=slot.class_type.preparation_info if slot.class_type else None,
             has_pdf=bool(slot.class_type and slot.class_type.pdf_code),
             pdf_code=slot.class_type.pdf_code if slot.class_type else None,
@@ -152,7 +147,6 @@ class BookingService:
                         "discipline_name": item.discipline.name if item.discipline else None,
                     } if item.trainer else None,
                     "booking_status": item.booking_status,
-                    "is_online": item.is_online,
                 }
                 for item in items
             ]

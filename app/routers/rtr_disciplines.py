@@ -50,8 +50,7 @@ def get_discipline_availability(
     date_to: datetime,
     session_duration_minutes: int | None = None,
     trainer_id: int | None = None,
-    is_online: bool | None = None,
     location_code: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return DisciplineService(db).get_availability(discipline_id, date_from, date_to, trainer_id, is_online, location_code)
+    return DisciplineService(db).get_availability(discipline_id, date_from, date_to, trainer_id, location_code)

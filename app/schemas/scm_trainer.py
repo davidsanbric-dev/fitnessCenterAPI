@@ -20,7 +20,6 @@ class TrainerAvailabilityItem(APIModel):
     # Adapted from clinic available appointment slot data for a professional.
     slot_datetime: datetime
     location_id: int | None = None
-    is_online: bool
     is_available: bool
     discipline_name: str | None = None
 

@@ -182,10 +182,10 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	"""
 	INSERT INTO slots (
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
-	  class_type_id, is_online, is_available, slot_assignment_code, schedule_type
+	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid, (NOW() + INTERVAL '1 day' + INTERVAL '7 hours')::timestamptz,
-	       l.id, t.id, d.id, ct.id, FALSE, TRUE, 'ASG-100', 'GROUP'
+	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-100', 'GROUP'
 	FROM locations l
 	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1001
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'YOGA'
@@ -199,10 +199,10 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	"""
 	INSERT INTO slots (
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
-	  class_type_id, is_online, is_available, slot_assignment_code, schedule_type
+	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid, (NOW() + INTERVAL '2 days' + INTERVAL '18 hours')::timestamptz,
-	       l.id, t.id, d.id, ct.id, TRUE, TRUE, 'ASG-200', 'GROUP'
+	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-200', 'GROUP'
 	FROM locations l
 	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1002
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'CROSSFIT'

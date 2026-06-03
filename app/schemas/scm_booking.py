@@ -41,7 +41,6 @@ class BookingByTrainerCreate(APIModel):
     session_duration_minutes: int
     discipline_code: str
     trainer_code: int
-    is_online: bool = False
     notes: str | None = None
 
 
@@ -77,8 +76,6 @@ class BookingResponse(APIModel):
     booking_datetime: datetime
     scheduled_at: datetime
     session_duration_minutes: int | None = None
-    is_online: bool
-    online_session_url: str | None = None
     preparation_info: str | None = None
     has_pdf: bool
     pdf_code: str | None = None
@@ -97,4 +94,3 @@ class UpcomingBookingResponse(APIModel):
     class_type: BookingClassTypeInfo | None = None
     trainer: BookingTrainerInfo | None = None
     booking_status: str
-    is_online: bool

@@ -30,7 +30,6 @@ class SlotRepository:
         class_type_id: int | None = None,
         query_type: str | None = None,
         session_duration_minutes: int | None = None,
-        is_online: bool | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Slot], int]:
@@ -64,9 +63,6 @@ class SlotRepository:
         if class_type_id is not None:
             statement = statement.join(Slot.class_type).where(ClassType.id == class_type_id)
             count_statement = count_statement.join(Slot.class_type).where(ClassType.id == class_type_id)
-        if is_online is not None:
-            statement = statement.where(Slot.is_online == is_online)
-            count_statement = count_statement.where(Slot.is_online == is_online)
         if query_type == "2" and trainer_id is None:
             return [], 0
         items = self.db.scalars(statement.order_by(Slot.slot_datetime).offset((page - 1) * page_size).limit(page_size)).all()

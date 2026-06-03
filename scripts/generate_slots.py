@@ -86,7 +86,6 @@ def _generate_for_company(db, num_slots: int) -> int:
                 trainer_id=trainer.id,
                 discipline_id=discipline.id if discipline else None,
                 class_type_id=class_type.id if class_type else None,
-                is_online=random.choice([True, False]),
                 is_available=True,
                 slot_assignment_code=code,
                 schedule_type="GROUP",
