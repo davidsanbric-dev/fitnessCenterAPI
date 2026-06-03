@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from .rtr_admin import router as admin_router
 from .rtr_auth import router as auth_router
+from .rtr_blog import router as blog_router
 from .rtr_bookings import router as bookings_router
 from .rtr_classes import router as classes_router
 from .rtr_disciplines import router as disciplines_router
@@ -24,11 +25,13 @@ api_router.include_router(statics_router)
 api_router.include_router(notifications_router)
 api_router.include_router(home_router)
 api_router.include_router(slots_router)
+api_router.include_router(blog_router)
 
 __all__ = [
 	"api_router",
 	"auth_router",
 	"admin_router",
+	"blog_router",
 	"bookings_router",
 	"classes_router",
 	"disciplines_router",

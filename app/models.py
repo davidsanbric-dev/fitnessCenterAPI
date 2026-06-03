@@ -350,6 +350,19 @@ class Notification(TenantMixin, TimestampMixin, Base):
 	user: Mapped[User] = relationship(back_populates="notifications")
 
 
+class Blog(TenantMixin, TimestampMixin, Base):
+	# Company-scoped blog/news entry: a single hero image plus markdown text body.
+	# The hero image bytes live on the BLOG_IMAGES_PATH bind volume; only the
+	# stored filename is persisted here (see app.services.svc_blog).
+	__tablename__ = "blogs"
+
+	id: Mapped[int] = mapped_column(Integer, primary_key=True)
+	title: Mapped[str] = mapped_column(String(200), index=True)
+	hero_image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+	text: Mapped[str] = mapped_column(Text, default="")
+	updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class DeviceToken(TenantMixin, Base):
 	# Gym-specific extension for mobile push delivery tokens.
 	__tablename__ = "device_tokens"

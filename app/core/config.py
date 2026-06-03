@@ -21,6 +21,10 @@ class Settings(BaseSettings):
 	database_url: str = Field(...)
 	access_token_expire_minutes: int = 30
 	demo_users: str = Field(default="")
+	# Filesystem directory where blog hero images are written. In production this
+	# is a Dokploy bind volume mounted on the API service (env BLOG_IMAGES_PATH);
+	# locally it defaults to a repo-relative folder.
+	blog_images_path: str = Field(default="blog_images")
 	firebase_project_id: str | None = None
 	firebase_service_account_path: str | None = None
 	cors_origins: list[str] = Field(default_factory=list)
