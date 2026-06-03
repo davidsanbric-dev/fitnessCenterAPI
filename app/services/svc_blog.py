@@ -12,9 +12,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.push import send_push_to_tokens
 from app.core.tenancy import get_session_company
 from app.models import Blog
 from app.repositories.rps_blog import BlogRepository
+from app.repositories.rps_notification import NotificationRepository
 from app.schemas.scm_blog import BlogUpsertRequest
 
 logger = logging.getLogger("uvicorn.error")
@@ -63,6 +65,7 @@ class BlogService:
         blog = self.repository.create_blog(
             Blog(title=title, text=payload.text or "", hero_image_path=hero_image_path)
         )
+        self._notify_new_blog(blog)
         return self._serialize(blog)
 
     def update_blog(self, blog_id: int, payload: BlogUpsertRequest) -> dict:
@@ -105,6 +108,27 @@ class BlogService:
         if base not in target.parents or not target.is_file():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
         return FileResponse(target)
+
+    # ---- notifications ---------------------------------------------------
+    def _notify_new_blog(self, blog: Blog) -> None:
+        # Push a "new blog" FCM message to every device registered for this
+        # company (device tokens are tenant-scoped). Best-effort: a push failure
+        # must never break blog creation. Stale tokens are pruned.
+        try:
+            notifications = NotificationRepository(self.db)
+            tokens = [device.token for device in notifications.list_device_tokens()]
+            if not tokens:
+                return
+            invalid = send_push_to_tokens(
+                tokens,
+                title="New post",
+                body=blog.title,
+                data={"type": "blog_created", "blog_id": blog.id},
+            )
+            if invalid:
+                notifications.prune_tokens(invalid)
+        except Exception:
+            logger.warning("Failed to dispatch blog push notification", exc_info=True)
 
     # ---- helpers ---------------------------------------------------------
     def _serialize(self, blog: Blog) -> dict:

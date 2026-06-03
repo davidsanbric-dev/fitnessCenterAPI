@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import DeviceToken, Notification
@@ -45,11 +46,39 @@ class NotificationRepository:
         self.db.refresh(notification)
         return notification
 
-    def create_device(self, device: DeviceToken) -> DeviceToken:
-        self.db.add(device)
-        self.db.commit()
+    def upsert_device(self, user_id: int, token: str, platform: str) -> DeviceToken | None:
+        # Idempotent registration: the same FCM token is re-sent on every app
+        # launch / token refresh, so update in place instead of inserting a
+        # duplicate (token is globally unique). Returns None when the token is
+        # already owned under a different company (benign: skip).
+        existing = self.db.scalar(select(DeviceToken).where(DeviceToken.token == token))
+        if existing is not None:
+            existing.user_id = user_id
+            existing.platform = platform
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+        device = DeviceToken(user_id=user_id, token=token, platform=platform)
+        try:
+            self.db.add(device)
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+            return None
         self.db.refresh(device)
         return device
+
+    def list_device_tokens(self) -> list[DeviceToken]:
+        # Auto-scoped to the active company by the tenant session filter.
+        return list(self.db.scalars(select(DeviceToken)).all())
+
+    def prune_tokens(self, tokens: list[str]) -> None:
+        if not tokens:
+            return
+        stale = self.db.scalars(select(DeviceToken).where(DeviceToken.token.in_(tokens))).all()
+        for device in stale:
+            self.db.delete(device)
+        self.db.commit()
 
     def delete_device(self, user_id: int, device_id: int) -> bool:
         device = self.db.scalar(select(DeviceToken).where(DeviceToken.user_id == user_id, DeviceToken.id == device_id))

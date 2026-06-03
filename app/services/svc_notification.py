@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models import DeviceToken, Notification
+from app.models import Notification
 from app.repositories.rps_notification import NotificationRepository
 
 
@@ -45,7 +45,11 @@ class NotificationService:
         return {"updated_count": updated_count}
 
     def create_device(self, user_id: int, token: str, platform: str) -> dict:
-        device = self.repository.create_device(DeviceToken(user_id=user_id, token=token, platform=platform))
+        device = self.repository.upsert_device(user_id, token, platform)
+        if device is None:
+            # Token already registered under another company; report it back as
+            # the caller's registration so the client treats it as a no-op.
+            return {"id": 0, "token": token, "platform": platform}
         return {"id": device.id, "token": device.token, "platform": device.platform}
 
     def delete_device(self, user_id: int, device_id: int) -> bool:
