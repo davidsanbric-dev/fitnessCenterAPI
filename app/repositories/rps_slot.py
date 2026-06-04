@@ -68,3 +68,40 @@ class SlotRepository:
         items = self.db.scalars(statement.order_by(Slot.slot_datetime).offset((page - 1) * page_size).limit(page_size)).all()
         total = int(self.db.scalar(count_statement) or 0)
         return list(items), total
+
+    # ---- trainer-owned slot management ---------------------------------------
+
+    def list_for_trainer(self, trainer_id: int) -> list[Slot]:
+        statement = (
+            select(Slot)
+            .options(selectinload(Slot.discipline))
+            .where(Slot.trainer_id == trainer_id)
+            .order_by(Slot.slot_datetime)
+        )
+        return list(self.db.scalars(statement).all())
+
+    def get_slot(self, slot_id: int) -> Slot | None:
+        statement = (
+            select(Slot)
+            .options(selectinload(Slot.discipline))
+            .where(Slot.id == slot_id)
+        )
+        return self.db.scalar(statement)
+
+    def create_slot(self, slot: Slot) -> Slot:
+        self.db.add(slot)
+        self.db.commit()
+        self.db.refresh(slot)
+        return slot
+
+    def update_slot(self, slot: Slot, fields: dict) -> Slot:
+        for key in ("slot_datetime", "is_available"):
+            if key in fields and fields[key] is not None:
+                setattr(slot, key, fields[key])
+        self.db.commit()
+        self.db.refresh(slot)
+        return slot
+
+    def delete_slot(self, slot: Slot) -> None:
+        self.db.delete(slot)
+        self.db.commit()

@@ -97,6 +97,7 @@ class User(TenantMixin, TimestampMixin, Base):
 
 	role: Mapped[Role | None] = relationship(back_populates="users")
 	profile: Mapped[MemberProfile | None] = relationship(back_populates="user", uselist=False)
+	trainer_profile: Mapped[Trainer | None] = relationship(back_populates="user", uselist=False)
 	bookings: Mapped[list[Booking]] = relationship(back_populates="user")
 	notifications: Mapped[list[Notification]] = relationship(back_populates="user")
 	device_tokens: Mapped[list[DeviceToken]] = relationship(back_populates="user")
@@ -173,7 +174,13 @@ class Trainer(TenantMixin, Base):
 	certifications: Mapped[list[str]] = mapped_column(JSON, default=list)
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
+	# Links a trainer record to its authenticated User (the "trainer" role demo
+	# user). Nullable because catalog trainers (e.g. seeded directory entries)
+	# have no login; the one seeded staff trainer per company is linked here so
+	# the web app can resolve "my" trainer from the signed-in account.
+	user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
+	user: Mapped[User | None] = relationship(back_populates="trainer_profile")
 	location: Mapped[Location | None] = relationship(back_populates="trainers")
 	disciplines: Mapped[list[Discipline]] = relationship(secondary=trainer_disciplines, back_populates="trainers")
 	membership_plans: Mapped[list[MembershipPlan]] = relationship(

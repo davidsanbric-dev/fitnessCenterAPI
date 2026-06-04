@@ -120,6 +120,17 @@ class AuthService:
             "memberships.read",
         ],
         "member": ["member.home.read", "bookings.read", "bookings.write"],
+        # The trainer signs into the web app but, unlike admin/manager, is scoped
+        # to its own slots, bookings, profile and a home dashboard. The grants
+        # below back those four web modules.
+        "trainer": [
+            "trainer.home.read",
+            "schedule.read",
+            "schedule.write",
+            "bookings.read",
+            "trainer.profile.read",
+            "trainer.profile.write",
+        ],
     }
 
     _STAFF_ROLES = frozenset({"admin", "manager"})
@@ -141,7 +152,7 @@ class AuthService:
     # app serves members; the web app serves staff (admin/manager).
     _ALLOWED_ROLES_BY_ORIGIN: dict[ClientOrigin, frozenset[str]] = {
         ClientOrigin.MOBILE: frozenset({"member"}),
-        ClientOrigin.WEB: frozenset({"admin", "manager"}),
+        ClientOrigin.WEB: frozenset({"admin", "manager", "trainer"}),
     }
 
     def firebase_login(self, id_token: str, *, origin: ClientOrigin) -> dict:

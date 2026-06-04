@@ -50,6 +50,24 @@ class TrainerRepository:
         items = self.db.scalars(statement.order_by(Trainer.full_name).offset((page - 1) * page_size).limit(page_size)).all()
         return list(items), total
 
+    def get_by_user_id(self, user_id: int) -> Trainer | None:
+        # Resolve the staff trainer linked to a signed-in user (see Trainer.user_id).
+        statement = (
+            select(Trainer)
+            .options(selectinload(Trainer.disciplines), selectinload(Trainer.location))
+            .where(Trainer.user_id == user_id)
+        )
+        return self.db.scalar(statement)
+
+    def update_trainer(self, trainer: Trainer, fields: dict) -> Trainer:
+        # Only the trainer's editable personal data; identity keys are untouched.
+        for key in ("full_name", "bio", "photo_url", "certifications"):
+            if key in fields and fields[key] is not None:
+                setattr(trainer, key, fields[key])
+        self.db.commit()
+        self.db.refresh(trainer)
+        return trainer
+
     def get_trainer(self, trainer_id: int) -> Trainer | None:
         statement = (
             select(Trainer)

@@ -230,6 +230,14 @@ def seed_reference_data(bind) -> None:
 	# Serialise concurrent seeders for the rest of this transaction.
 	bind.execute(sa.text("SELECT pg_advisory_xact_lock(:k)"), {"k": _SEED_LOCK_KEY})
 
+	# Defensive: guarantee the trainer<->user link column exists before the staff
+	# trainer seed references it. Idempotent, and covers the case where the seed
+	# migration runs standalone (``alembic upgrade``) before ``create_all`` has
+	# provisioned the column on a fresh database.
+	bind.execute(
+		sa.text("ALTER TABLE trainers ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)")
+	)
+
 	company_id_by_slug = _seed_companies(bind)
 	_seed_roles(bind)
 
@@ -261,7 +269,7 @@ def _seed_roles(bind) -> None:
 	# Roles are the global authorization catalogue (not company-scoped). The
 	# catalogue must cover every role the API can resolve (see
 	# AuthService._PERMISSIONS_BY_ROLE), even those no demo user currently uses.
-	for role_name in ("admin", "manager", "member"):
+	for role_name in ("admin", "manager", "member", "trainer"):
 		bind.execute(
 			sa.text(
 				"INSERT INTO roles (uid, name) VALUES (:uid, :name) "
@@ -292,6 +300,13 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				{"email": email, "role": role_name, "cid": company_id},
 			)
 
+			# The trainer demo user owns a Trainer record (its personal data) rather
+			# than a member profile; everyone else (admin/member) gets a member
+			# profile as before.
+			if role_name == "trainer":
+				_seed_trainer_staff(bind, company_id, email)
+				continue
+
 			bind.execute(
 				sa.text(
 					"INSERT INTO member_profiles ("
@@ -306,3 +321,79 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				),
 				{"first_name": first_name, "email": email, "cid": company_id},
 			)
+
+
+# Reserved trainer_code for the single staff trainer seeded per company and linked
+# to the "trainer" demo user. Kept clear of the catalog directory trainers
+# (1001/1002) so the two never collide on the (company_id, trainer_code) key.
+_STAFF_TRAINER_CODE = 2001
+
+# Per-company staff-trainer provisioning. Each statement is idempotent and scoped
+# to :cid (company) and :email (the trainer demo user resolved to its User row).
+_STAFF_TRAINER_SQL: list[str] = [
+	# -------------------------------------------------------------------------
+	# TRAINER RECORD (hardcoded non-credential fields; linked to the trainer user).
+	# unique per (company_id, trainer_code). Anchored at LOC001.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO trainers (
+	  company_id, trainer_code, full_name, bio, photo_url, certifications,
+	  is_active, location_id, user_id
+	)
+	SELECT :cid, 2001, 'Jordan Pike',
+	       'Personal trainer managing one-on-one sessions and availability.',
+	       '/images/trainers/staff.jpg', '["NASM-CPT", "Strength & Conditioning"]'::json,
+	       TRUE,
+	       (SELECT id FROM locations WHERE company_id = :cid AND location_code = 'LOC001'),
+	       u.id
+	FROM users u
+	WHERE lower(u.email) = :email
+	ON CONFLICT (company_id, trainer_code) DO NOTHING
+	""",
+	# -------------------------------------------------------------------------
+	# TRAINER-DISCIPLINE ASSOCIATION (gives the staff trainer a discipline so its
+	# slots are meaningful). Scoped to :cid on both sides.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO trainer_disciplines (trainer_id, discipline_id)
+	SELECT t.id, d.id
+	FROM trainers t
+	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'YOGA'
+	WHERE t.company_id = :cid AND t.trainer_code = 2001
+	ON CONFLICT DO NOTHING
+	""",
+	# -------------------------------------------------------------------------
+	# 6 AVAILABLE SLOTS, one per day starting two days after creation (09:00).
+	# Idempotent via the slot_assignment_code guard, so re-running on a later day
+	# does not append new slots at shifted times.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO slots (
+	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  is_available, slot_assignment_code, schedule_type
+	)
+	SELECT :cid,
+	       date_trunc('minute', (NOW() + INTERVAL '2 days' + (gs.n || ' days')::interval + INTERVAL '9 hours')::timestamptz),
+	       t.location_id, t.id, d.id, TRUE, 'TRN2001-' || gs.n, 'PERSONAL'
+	FROM generate_series(0, 5) AS gs(n)
+	CROSS JOIN trainers t
+	CROSS JOIN disciplines d
+	WHERE t.company_id = :cid AND t.trainer_code = 2001
+	  AND d.company_id = :cid AND d.discipline_code = 'YOGA'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM slots s
+	    WHERE s.company_id = :cid AND s.slot_assignment_code = 'TRN2001-' || gs.n
+	  )
+	ON CONFLICT (trainer_id, slot_datetime) DO NOTHING
+	""",
+]
+
+
+def _seed_trainer_staff(bind, company_id: int, email: str) -> None:
+	"""Provision the single staff trainer for a company and its 6 starter slots.
+
+	Idempotent: the trainer record keys on (company_id, trainer_code) and the
+	slots guard on their assignment code, so repeated runs are no-ops.
+	"""
+	for statement in _STAFF_TRAINER_SQL:
+		bind.execute(sa.text(statement), {"cid": company_id, "email": email})
