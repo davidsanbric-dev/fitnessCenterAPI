@@ -220,7 +220,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
 	       'CrossFit: Unlock Your Full Athletic Potential',
-	       'crossfit_blog_hero_image.png',
+	       'crossfit_blog_hero_image.webp',
 	       'CrossFit combines strength training, cardiovascular conditioning, and functional movements into high-intensity workouts designed to challenge both body and mind. Whether you''re a beginner looking to improve your fitness or an experienced athlete seeking new challenges, every session is scalable to your current level.'
 	       || chr(10) || chr(10) ||
 	       'Beyond the physical benefits, CrossFit fosters a supportive community that motivates you to push further, celebrate progress, and develop lasting healthy habits. If you''re ready to build strength, endurance, and confidence simultaneously, CrossFit offers a proven path forward.',
@@ -233,7 +233,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
 	       'Yoga: Find Balance, Strength, and Inner Calm',
-	       'yoga_blog_hero_image.png',
+	       'yoga_blog_hero_image.webp',
 	       'Yoga is more than stretching—it''s a holistic practice that connects movement, breathing, and mindfulness. Through carefully guided postures and controlled breathing techniques, yoga helps improve flexibility, posture, mobility, and mental clarity.'
 	       || chr(10) || chr(10) ||
 	       'In today''s fast-paced world, yoga provides a valuable opportunity to slow down, reduce stress, and reconnect with yourself. Whether your goal is relaxation, recovery, or enhanced athletic performance, regular practice can bring lasting benefits to both body and mind.',
@@ -246,7 +246,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
 	       'Pilates: Build Strength from the Core Out',
-	       'pilates_blog_hero_image.png',
+	       'pilates_blog_hero_image.webp',
 	       'Pilates focuses on controlled movements that strengthen the body''s core muscles while improving posture, balance, and overall body awareness. Every exercise emphasizes precision and proper alignment, helping create a strong foundation for daily activities and athletic performance alike.'
 	       || chr(10) || chr(10) ||
 	       'Suitable for all fitness levels, Pilates is particularly effective for developing functional strength, reducing muscular imbalances, and enhancing flexibility. By training smarter rather than harder, Pilates helps you move with greater confidence, control, and efficiency in every aspect of life.',
