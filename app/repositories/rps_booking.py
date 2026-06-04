@@ -45,7 +45,7 @@ class BookingRepository:
                 Slot.slot_datetime >= booking_datetime,
                 Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
-                Location.location_code == location_code,
+                self._location_clause(location_code),
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
             )
         )
@@ -75,13 +75,25 @@ class BookingRepository:
                 Slot.slot_datetime >= booking_datetime,
                 Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
-                Location.location_code == location_code,
+                self._location_clause(location_code),
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
                 ClassType.id == class_type_id,
                 Slot.slot_assignment_code == slot_assignment_code,
             )
         )
         return self.db.scalar(statement)
+
+    @staticmethod
+    def _location_clause(location_code: str):
+        # The client may send either the alphanumeric location code (e.g.
+        # "LOC001") or the numeric location id stringified (the mobile booking
+        # flow sends location_id, since the slot payload only carries the id).
+        # Accept both -- mirrors how trainer_code/discipline_code resolve by
+        # code OR id above.
+        normalized = (location_code or "").strip()
+        if normalized.isdigit():
+            return Location.id == int(normalized)
+        return Location.location_code == normalized
 
     def create_booking(self, booking: Booking, slot: Slot | None = None) -> Booking:
         self.db.add(booking)
