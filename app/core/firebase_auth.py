@@ -54,6 +54,35 @@ def verify_firebase_token(token: str) -> dict:
     return decoded
 
 
+def create_or_align_firebase_account(email: str, password: str) -> str:
+    """Provision a Firebase credential for a staff-created account and return its uid.
+
+    Showcase-style: the account is created (or aligned) with ``email_verified=True``
+    so the new trainer can sign in immediately, without the email-verification step
+    the login gate (``verify_firebase_token``) otherwise enforces. This mirrors the
+    demo-account seeding in ``scripts/set_and_verify_demo_users.py`` but is callable
+    at runtime from the admin trainer-creation flow. Idempotent: an existing account
+    is realigned (password reset, marked verified) rather than duplicated.
+    """
+    if not email or not email.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing email")
+    if not password or len(password) < 6:
+        # Firebase rejects passwords shorter than 6 characters; surface a clean 400.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters")
+
+    try:
+        _get_firebase_app()
+        try:
+            user = auth.get_user_by_email(email)
+        except auth.UserNotFoundError:
+            return auth.create_user(email=email, password=password, email_verified=True).uid
+        # Existing account: align it to the desired state so the credential is usable.
+        auth.update_user(user.uid, password=password, email_verified=True)
+        return user.uid
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase auth is not configured") from exc
+
+
 def set_firebase_custom_claims(uid: str, claims: dict) -> None:
     if not uid or not uid.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Firebase user id")

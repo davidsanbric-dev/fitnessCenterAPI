@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.authorization import ensure_admin_or_manager
@@ -13,9 +13,11 @@ from app.schemas import MessageResponse
 from app.schemas.scm_admin import AdminHomeResponse
 from app.schemas.scm_booking import BookingResponse, BookingStatusResponse, BookingStatusUpdate
 from app.schemas.scm_membership import AdminMembershipPlanUpsertRequest, MembershipPlanResponse
+from app.schemas.scm_trainer import TrainerAdminCreateRequest, TrainerMeProfileResponse
 from app.services.svc_admin import AdminService
 from app.services.svc_booking import BookingService
 from app.services.svc_membership import MembershipService
+from app.services.svc_trainer import TrainerService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -66,6 +68,18 @@ def update_admin_booking_status(
         location_code=payload.location_code,
         notes=payload.notes,
     )
+
+
+@router.post('/trainers', response_model=TrainerMeProfileResponse, status_code=status.HTTP_201_CREATED)
+def create_admin_trainer(
+    payload: TrainerAdminCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Staff-only: provisions a new trainer (Firebase credential + user + personal
+    # data) in the admin's company. See TrainerService.admin_create_trainer.
+    ensure_admin_or_manager(db, current_user)
+    return TrainerService(db).admin_create_trainer(payload.model_dump())
 
 
 @router.post('/membership-plans', response_model=MembershipPlanResponse)

@@ -4,10 +4,14 @@ import logging
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.firebase_auth import create_or_align_firebase_account
 from app.core.push import send_push_to_tokens
-from app.models import Slot, Trainer, User
+from app.core.tenancy import get_session_company
+from app.models import Discipline, Location, Role, Slot, Trainer, User
 from app.repositories.rps_notification import NotificationRepository
 from app.repositories.rps_slot import SlotRepository
 from app.repositories.rps_trainer import TrainerRepository
@@ -82,6 +86,80 @@ class TrainerService:
                 for slot in slots
             ],
         }
+
+    # ---- admin staff-trainer provisioning -----------------------------------
+    # Base trainer_code for admin-created staff trainers, kept clear of the seeded
+    # catalog (1001/1002) and demo-staff (2001) codes. The next free code within
+    # the company is allocated upward from here.
+    _ADMIN_TRAINER_CODE_BASE = 3000
+
+    def admin_create_trainer(self, payload: dict) -> dict:
+        # Provision a new staff trainer from the admin web: a Firebase credential,
+        # a User bound to the "trainer" role, and the linked Trainer record holding
+        # its personal data. Mirrors the seed's staff-trainer provisioning but at
+        # runtime, scoped to the calling admin's company (tenant set on the session).
+        email = str(payload["email"]).strip().lower()
+        full_name = str(payload["full_name"]).strip()
+        password = str(payload["password"])
+
+        # Roles are the global authorization catalogue (not tenant scoped); its
+        # absence means the deployment was never seeded.
+        role = self.db.scalar(select(Role).where(Role.name == "trainer"))
+        if role is None:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Trainer role is not provisioned")
+
+        company_id = get_session_company(self.db)
+
+        # Next free trainer_code within the company (codes are unique per company).
+        max_code = self.db.scalar(select(func.max(Trainer.trainer_code)).where(Trainer.company_id == company_id))
+        trainer_code = max(int(max_code or 0), self._ADMIN_TRAINER_CODE_BASE) + 1
+
+        # Anchor the trainer at the company's first location, mirroring the seed.
+        location = self.db.scalar(select(Location).order_by(Location.id))
+
+        # Optional discipline: only attach one that belongs to this company (the
+        # session is tenant-scoped) so the trainer's future slots are meaningful.
+        discipline = None
+        discipline_id = payload.get("discipline_id")
+        if discipline_id:
+            discipline = self.db.scalar(select(Discipline).where(Discipline.id == discipline_id))
+            if discipline is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
+
+        # Provision the backend rows first so the globally-unique email constraint
+        # is the authoritative duplicate guard — it also catches cross-company
+        # duplicates the tenant-scoped session cannot see. company_id is auto-
+        # stamped on flush by the tenancy event.
+        user = User(email=email, role_id=role.id, is_active=True)
+        self.db.add(user)
+        try:
+            self.db.flush()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from exc
+
+        trainer = Trainer(
+            trainer_code=trainer_code,
+            full_name=full_name,
+            bio=payload.get("bio"),
+            photo_url=payload.get("photo_url") or "/images/trainers/staff.jpg",
+            certifications=payload.get("certifications") or [],
+            is_active=True,
+            location_id=location.id if location else None,
+            user_id=user.id,
+        )
+        if discipline is not None:
+            trainer.disciplines.append(discipline)
+        self.db.add(trainer)
+
+        # Create the credential only now that the email is known free, so a
+        # conflict above never leaves an orphan Firebase account. Done before the
+        # commit so a Firebase failure rolls back the half-provisioned rows.
+        create_or_align_firebase_account(email, password)
+
+        self.db.commit()
+        self.db.refresh(trainer)
+        return self._serialize_profile(trainer, email)
 
     # ---- trainer self-service ("me") ----------------------------------------
     # All of the below resolve the Trainer record from the signed-in user, so a
