@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 import sqlalchemy as sa
@@ -321,6 +322,24 @@ def _seed_roles(bind) -> None:
 		)
 
 
+# Hardcoded personal-data for known demo member accounts, keyed by lower-case
+# email. Mirrors how _STAFF_TRAINER_SQL supplies specific values for Jordan Pike
+# instead of leaving fields as placeholders or random-generated.
+_DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
+	"member@otrofyjobapply.com": {
+		"first_name": "Alex",
+		"paternal_surname": "Torres",
+		"maternal_surname": "Vega",
+		"mobile_phone": "+56912340001",
+		"landline_phone": None,
+		"birth_date": "1993-07-22",
+		"address": "Av. Providencia 456, Santiago",
+		"avatar_url": "/images/members/demo_member.jpg",
+		"fitness_goals": "Build endurance and increase overall strength through consistent group classes.",
+	},
+}
+
+
 def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 	# Firebase-linked demo users + profiles, scoped to their company. Email is
 	# globally unique and is the key that resolves a user back to its company at
@@ -331,7 +350,7 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 			continue
 		for role_name, email, _password in members:
 			local_part = email.split("@", 1)[0]
-			first_name = (local_part[:1].upper() + local_part[1:]) if local_part else "Demo"
+			default_first = (local_part[:1].upper() + local_part[1:]) if local_part else "Demo"
 
 			bind.execute(
 				sa.text(
@@ -349,19 +368,34 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				_seed_trainer_staff(bind, company_id, email)
 				continue
 
+			profile = _DEMO_MEMBER_PROFILES.get(email.lower(), {})
+			# Deterministic phone fallback for emails not in _DEMO_MEMBER_PROFILES so
+			# the NOT NULL mobile_phone column is always satisfied without random().
+			fallback_phone = "+569" + hashlib.md5(email.encode()).hexdigest()[:8]
 			bind.execute(
 				sa.text(
 					"INSERT INTO member_profiles ("
 					"  user_id, company_id, first_name, paternal_surname, maternal_surname, "
 					"  mobile_phone, landline_phone, birth_date, address, avatar_url, fitness_goals"
 					") "
-					"SELECT u.id, :cid, :first_name, 'Demo', 'User', "
-					"  '+569' || substring(md5(random()::text), 1, 8), "
-					"  NULL, NULL, NULL, NULL, NULL "
+					"SELECT u.id, :cid, :first_name, :paternal_surname, :maternal_surname, "
+					"  :mobile_phone, :landline_phone, CAST(:birth_date AS DATE), :address, :avatar_url, :fitness_goals "
 					"FROM users u WHERE lower(u.email) = :email "
 					"ON CONFLICT (user_id) DO NOTHING"
 				),
-				{"first_name": first_name, "email": email, "cid": company_id},
+				{
+					"first_name": profile.get("first_name", default_first),
+					"paternal_surname": profile.get("paternal_surname", "Demo"),
+					"maternal_surname": profile.get("maternal_surname", "User"),
+					"mobile_phone": profile.get("mobile_phone") or fallback_phone,
+					"landline_phone": profile.get("landline_phone"),
+					"birth_date": profile.get("birth_date"),
+					"address": profile.get("address"),
+					"avatar_url": profile.get("avatar_url"),
+					"fitness_goals": profile.get("fitness_goals"),
+					"email": email,
+					"cid": company_id,
+				},
 			)
 
 
