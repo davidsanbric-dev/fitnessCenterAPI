@@ -33,6 +33,14 @@ class BookingLocationInfo(APIModel):
     location_code: str | None = None
 
 
+class BookingMemberInfo(APIModel):
+    # The member who owns the booking, surfaced for staff/trainer agenda views
+    # (the member's own views simply show themselves here).
+    user_id: int
+    full_name: str
+    email: str | None = None
+
+
 class BookingByTrainerCreate(APIModel):
     # Adapted from clinic ScheduleAppointmentCommand -> gym by-trainer booking payload.
     booking_date: str
@@ -81,6 +89,7 @@ class BookingResponse(APIModel):
     pdf_code: str | None = None
     notes: str | None = None
     is_overbooking: bool
+    member: BookingMemberInfo | None = None
     trainer: BookingTrainerInfo | None = None
     class_type: BookingClassTypeInfo | None = None
     category: BookingCategoryInfo | None = None

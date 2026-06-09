@@ -30,6 +30,19 @@ def serialize_trainer_summary(trainer: Trainer) -> dict:
 
 def serialize_booking(booking: Booking) -> dict:
     trainer_discipline = booking.trainer.disciplines[0] if booking.trainer and booking.trainer.disciplines else None
+    member = None
+    if booking.user is not None:
+        profile = booking.user.profile
+        full_name = (
+            " ".join(filter(None, [profile.first_name, profile.paternal_surname, profile.maternal_surname])).strip()
+            if profile is not None
+            else ""
+        ) or booking.user.email
+        member = {
+            "user_id": booking.user.id,
+            "full_name": full_name,
+            "email": booking.user.email,
+        }
     return {
         "booking_id": booking.id,
         "booking_status": booking.booking_status,
@@ -41,6 +54,7 @@ def serialize_booking(booking: Booking) -> dict:
         "pdf_code": booking.pdf_code,
         "notes": booking.notes,
         "is_overbooking": booking.is_overbooking,
+        "member": member,
         "trainer": {
             "trainer_id": booking.trainer.id,
             "full_name": booking.trainer.full_name,

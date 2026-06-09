@@ -12,6 +12,7 @@ from app.models import (
     Location,
     Slot,
     Trainer,
+    User,
 )
 
 
@@ -151,6 +152,7 @@ class BookingRepository:
         return (
             select(Booking)
             .options(
+                selectinload(Booking.user).selectinload(User.profile),
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
@@ -163,6 +165,7 @@ class BookingRepository:
         statement = (
             select(Booking)
             .options(
+                selectinload(Booking.user).selectinload(User.profile),
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
@@ -200,6 +203,7 @@ class BookingRepository:
         statement = (
             select(Booking)
             .options(
+                selectinload(Booking.user).selectinload(User.profile),
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
