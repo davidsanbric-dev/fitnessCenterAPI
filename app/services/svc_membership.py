@@ -25,7 +25,6 @@ class MembershipService:
                     "duration_days": plan.duration_days,
                     "features": plan.features,
                     "max_bookings_per_month": plan.max_bookings_per_month,
-                    "includes_personal_training": plan.includes_personal_training,
                 }
                 for plan in plans
             ]
@@ -43,7 +42,6 @@ class MembershipService:
             "duration_days": plan.duration_days,
             "features": plan.features,
             "max_bookings_per_month": plan.max_bookings_per_month,
-            "includes_personal_training": plan.includes_personal_training,
             "allowed_class_categories": [
                 {"category_id": category.id, "name": category.name}
                 for category in plan.allowed_categories
@@ -68,7 +66,6 @@ class MembershipService:
                 duration_days=payload.duration_days,
                 features=payload.features,
                 max_bookings_per_month=payload.max_bookings_per_month,
-                includes_personal_training=payload.includes_personal_training,
             )
         )
         return {
@@ -79,7 +76,6 @@ class MembershipService:
             "duration_days": plan.duration_days,
             "features": plan.features,
             "max_bookings_per_month": plan.max_bookings_per_month,
-            "includes_personal_training": plan.includes_personal_training,
         }
 
     def update_plan(self, plan_id: int, payload) -> dict:
@@ -99,7 +95,6 @@ class MembershipService:
                 "duration_days": payload.duration_days,
                 "features": payload.features,
                 "max_bookings_per_month": payload.max_bookings_per_month,
-                "includes_personal_training": payload.includes_personal_training,
             },
         )
         return {
@@ -110,7 +105,6 @@ class MembershipService:
             "duration_days": updated.duration_days,
             "features": updated.features,
             "max_bookings_per_month": updated.max_bookings_per_month,
-            "includes_personal_training": updated.includes_personal_training,
         }
 
     def delete_plan(self, plan_id: int) -> dict:

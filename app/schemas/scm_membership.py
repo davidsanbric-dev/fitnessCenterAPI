@@ -15,7 +15,6 @@ class MembershipPlanResponse(APIModel):
     duration_days: int
     features: list[str]
     max_bookings_per_month: int
-    includes_personal_training: bool
 
 
 class MembershipPlanDetailResponse(MembershipPlanResponse):
@@ -40,4 +39,3 @@ class AdminMembershipPlanUpsertRequest(APIModel):
     duration_days: int
     features: list[str]
     max_bookings_per_month: int
-    includes_personal_training: bool

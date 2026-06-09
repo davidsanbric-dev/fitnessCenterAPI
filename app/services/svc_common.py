@@ -134,7 +134,6 @@ def serialize_membership(membership: MemberMembership) -> dict:
             "duration_days": membership.plan.duration_days,
             "features": membership.plan.features,
             "max_bookings_per_month": membership.plan.max_bookings_per_month,
-            "includes_personal_training": membership.plan.includes_personal_training,
         },
         "start_date": membership.start_date,
         "end_date": membership.end_date,

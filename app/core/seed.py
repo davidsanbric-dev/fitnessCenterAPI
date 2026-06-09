@@ -70,11 +70,11 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	"""
 	INSERT INTO membership_plans (
 	  company_id, name, description, price, duration_days, features,
-	  max_bookings_per_month, includes_personal_training
+	  max_bookings_per_month
 	) VALUES
-	  (:cid, 'Basic', 'Access to essential classes', 29.99, 30, '["Gym floor access", "2 group classes per week"]'::json, 8, FALSE),
-	  (:cid, 'Premium', 'Unlimited classes and amenities', 59.99, 30, '["Unlimited classes", "Sauna access", "Nutrition webinar"]'::json, 30, TRUE),
-	  (:cid, 'VIP', 'All access with premium coaching', 89.99, 30, '["Unlimited classes", "2 PT sessions", "Priority booking"]'::json, 50, TRUE)
+	  (:cid, 'Basic', 'Access to essential classes', 29.99, 30, '["Gym floor access", "2 group classes per week"]'::json, 8),
+	  (:cid, 'Premium', 'Unlimited classes and amenities', 59.99, 30, '["Unlimited classes", "Sauna access", "Nutrition webinar"]'::json, 30),
+	  (:cid, 'VIP', 'All access with premium coaching', 89.99, 30, '["Unlimited classes", "2 PT sessions", "Priority booking"]'::json, 50)
 	ON CONFLICT (company_id, name) DO NOTHING
 	""",
 	# -------------------------------------------------------------------------
@@ -310,6 +310,13 @@ def seed_reference_data(bind) -> None:
 	# field was added to MemberProfile (create_all never alters existing tables).
 	bind.execute(
 		sa.text("ALTER TABLE member_profiles ADD COLUMN IF NOT EXISTS rut VARCHAR(20)")
+	)
+
+	# Membership plans are gated purely by their monthly booking quota now, so the
+	# old per-type ``includes_personal_training`` flag is dropped. Idempotent; the
+	# column is absent from the MembershipPlan model so create_all never re-adds it.
+	bind.execute(
+		sa.text("ALTER TABLE membership_plans DROP COLUMN IF EXISTS includes_personal_training")
 	)
 
 	# Defensive: ``slots.is_online`` is a NOT NULL column present in some databases

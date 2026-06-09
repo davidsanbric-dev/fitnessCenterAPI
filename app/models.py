@@ -313,7 +313,6 @@ class MembershipPlan(TenantMixin, Base):
 	duration_days: Mapped[int] = mapped_column(Integer, default=30)
 	features: Mapped[list[str]] = mapped_column(JSON, default=list)
 	max_bookings_per_month: Mapped[int] = mapped_column(Integer, default=0)
-	includes_personal_training: Mapped[bool] = mapped_column(Boolean, default=False)
 
 	member_memberships: Mapped[list[MemberMembership]] = relationship(back_populates="plan")
 	allowed_categories: Mapped[list[ClassCategory]] = relationship(
