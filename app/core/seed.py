@@ -7,6 +7,30 @@ import sqlalchemy as sa
 
 from app.core.config import settings
 
+
+def _rut_check_digit(body: int) -> str:
+	# Standard Chilean RUT verifier digit (modulo 11), so seeded RUTs are
+	# well-formed and pass client-side validation/formatting.
+	total = 0
+	factor = 2
+	for digit in reversed(str(body)):
+		total += int(digit) * factor
+		factor = 2 if factor == 7 else factor + 1
+	remainder = 11 - (total % 11)
+	if remainder == 11:
+		return "0"
+	if remainder == 10:
+		return "K"
+	return str(remainder)
+
+
+def _deterministic_rut(email: str) -> str:
+	# Deterministic 8-digit RUT body derived from the email so re-running the
+	# seed/backfill always yields the same value for a given member (idempotent)
+	# without a random() that would drift between runs.
+	body = 10_000_000 + (int(hashlib.md5(email.encode()).hexdigest()[:8], 16) % 15_000_000)
+	return f"{body}-{_rut_check_digit(body)}"
+
 # Advisory-lock key serialising concurrent seeders (e.g. multiple workers running
 # lifespan startup at once). Held for the duration of the calling transaction, it
 # prevents the NOT EXISTS category inserts below from racing into duplicates.
@@ -281,6 +305,31 @@ def seed_reference_data(bind) -> None:
 		sa.text("ALTER TABLE trainers ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)")
 	)
 
+	# Likewise guarantee the member RUT column exists before the demo-member seed
+	# writes it. Idempotent; covers existing databases provisioned before the RUT
+	# field was added to MemberProfile (create_all never alters existing tables).
+	bind.execute(
+		sa.text("ALTER TABLE member_profiles ADD COLUMN IF NOT EXISTS rut VARCHAR(20)")
+	)
+
+	# Defensive: ``slots.is_online`` is a NOT NULL column present in some databases
+	# (schema drift -- it is absent from the Slot model) but with no server default,
+	# while the catalog/staff slot inserts below never set it. Without a default the
+	# whole seed transaction aborts at the first real slot insert (e.g. the staff
+	# trainer's), rolling back every preceding insert -- including the RUT and
+	# membership seeding. Backfilling a default makes those inserts well-formed.
+	# Idempotent and a no-op on databases where the column does not exist.
+	bind.execute(
+		sa.text(
+			"DO $$ BEGIN "
+			"IF EXISTS (SELECT 1 FROM information_schema.columns "
+			"WHERE table_name = 'slots' AND column_name = 'is_online') THEN "
+			"ALTER TABLE slots ALTER COLUMN is_online SET DEFAULT FALSE; "
+			"UPDATE slots SET is_online = FALSE WHERE is_online IS NULL; "
+			"END IF; END $$"
+		)
+	)
+
 	company_id_by_slug = _seed_companies(bind)
 	_seed_roles(bind)
 
@@ -330,6 +379,7 @@ _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
 		"first_name": "Alex",
 		"paternal_surname": "Torres",
 		"maternal_surname": "Vega",
+		"rut": "18765432-7",
 		"mobile_phone": "+56912340001",
 		"landline_phone": None,
 		"birth_date": "1993-07-22",
@@ -372,14 +422,16 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 			# Deterministic phone fallback for emails not in _DEMO_MEMBER_PROFILES so
 			# the NOT NULL mobile_phone column is always satisfied without random().
 			fallback_phone = "+569" + hashlib.md5(email.encode()).hexdigest()[:8]
+			# Hardcoded RUT when known, otherwise a deterministic well-formed value.
+			member_rut = profile.get("rut") or _deterministic_rut(email)
 			bind.execute(
 				sa.text(
 					"INSERT INTO member_profiles ("
 					"  user_id, company_id, first_name, paternal_surname, maternal_surname, "
-					"  mobile_phone, landline_phone, birth_date, address, avatar_url, fitness_goals"
+					"  rut, mobile_phone, landline_phone, birth_date, address, avatar_url, fitness_goals"
 					") "
 					"SELECT u.id, :cid, :first_name, :paternal_surname, :maternal_surname, "
-					"  :mobile_phone, :landline_phone, CAST(:birth_date AS DATE), :address, :avatar_url, :fitness_goals "
+					"  :rut, :mobile_phone, :landline_phone, CAST(:birth_date AS DATE), :address, :avatar_url, :fitness_goals "
 					"FROM users u WHERE lower(u.email) = :email "
 					"ON CONFLICT (user_id) DO NOTHING"
 				),
@@ -387,6 +439,7 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 					"first_name": profile.get("first_name", default_first),
 					"paternal_surname": profile.get("paternal_surname", "Demo"),
 					"maternal_surname": profile.get("maternal_surname", "User"),
+					"rut": member_rut,
 					"mobile_phone": profile.get("mobile_phone") or fallback_phone,
 					"landline_phone": profile.get("landline_phone"),
 					"birth_date": profile.get("birth_date"),
@@ -397,6 +450,39 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 					"cid": company_id,
 				},
 			)
+
+			# Backfill the RUT on pre-existing profiles whose row predates the column
+			# (ON CONFLICT above leaves existing rows untouched). Only fills NULLs, so
+			# it never overwrites a value a member may have edited.
+			bind.execute(
+				sa.text(
+					"UPDATE member_profiles SET rut = :rut "
+					"FROM users u "
+					"WHERE member_profiles.user_id = u.id AND lower(u.email) = :email "
+					"  AND member_profiles.rut IS NULL"
+				),
+				{"rut": member_rut, "email": email},
+			)
+
+			# Members get a Basic plan subscription so the mobile app can surface it
+			# and the booking allowance can be enforced. Idempotent: skipped when the
+			# member already has a membership (user_id is unique on the table).
+			if role_name == "member":
+				bind.execute(
+					sa.text(
+						"INSERT INTO member_memberships ("
+						"  company_id, user_id, membership_plan_id, start_date, end_date, status, bookings_used"
+						") "
+						"SELECT :cid, u.id, mp.id, CURRENT_DATE, CURRENT_DATE + mp.duration_days, 'ACTIVE', 0 "
+						"FROM users u "
+						"JOIN membership_plans mp ON mp.company_id = :cid AND mp.name = 'Basic' "
+						"WHERE lower(u.email) = :email "
+						"  AND NOT EXISTS ("
+						"    SELECT 1 FROM member_memberships m WHERE m.user_id = u.id"
+						"  )"
+					),
+					{"email": email, "cid": company_id},
+				)
 
 
 # Reserved trainer_code for the single staff trainer seeded per company and linked

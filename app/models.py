@@ -110,6 +110,9 @@ class MemberProfile(TenantMixin, Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+	# Chilean national ID (RUT). Nullable so legacy rows and partial registrations
+	# remain valid; the seed/backfill assigns a deterministic value per member.
+	rut: Mapped[str | None] = mapped_column(String(20), nullable=True)
 	first_name: Mapped[str] = mapped_column(String(120))
 	paternal_surname: Mapped[str] = mapped_column(String(120))
 	maternal_surname: Mapped[str] = mapped_column(String(120))

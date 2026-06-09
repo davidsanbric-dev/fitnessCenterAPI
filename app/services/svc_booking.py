@@ -20,6 +20,32 @@ class BookingService:
         self.user_repository = UserRepository(db)
         self.notifications = NotificationService(db)
 
+    def _enforce_booking_allowance(self, user: User, *, schedule_type: str | None) -> None:
+        # Gate booking creation on the member's subscribed plan. An active
+        # membership is required; the plan then governs (a) access to one-on-one
+        # personal-training sessions -- keyed off the resolved slot's schedule
+        # type, since trainer slots may be GROUP or PERSONAL -- and (b) the
+        # monthly booking quota. The Basic plan, for instance, excludes personal
+        # training and caps monthly bookings, so those members are rejected here
+        # with a clear message.
+        membership = user.membership
+        if membership is None or membership.plan is None or membership.status != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="An active membership is required to book sessions",
+            )
+        plan = membership.plan
+        if str(schedule_type).upper() == "PERSONAL" and not plan.includes_personal_training:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your {plan.name} plan does not include personal training sessions",
+            )
+        if plan.max_bookings_per_month and membership.bookings_used >= plan.max_bookings_per_month:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"You have reached your monthly booking limit for the {plan.name} plan",
+            )
+
     def _member_label(self, booking: Booking) -> str:
         profile = booking.user.profile if booking.user else None
         if profile is not None:
@@ -68,6 +94,9 @@ class BookingService:
         )
         if slot is None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is not available")
+        # Enforce the plan allowance once the slot is known: a PERSONAL slot needs
+        # a plan that includes personal training; every booking consumes quota.
+        self._enforce_booking_allowance(user, schedule_type=slot.schedule_type)
         booking = Booking(
             user_id=user.id,
             slot_id=slot.id,
@@ -113,6 +142,9 @@ class BookingService:
         )
         if slot is None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is not available")
+        # Enforce the plan allowance: group classes carry no PT requirement, but
+        # still consume the member's monthly quota.
+        self._enforce_booking_allowance(user, schedule_type=slot.schedule_type)
         booking = Booking(
             user_id=user.id,
             slot_id=slot.id,

@@ -92,6 +92,7 @@ def serialize_user(user: User) -> dict:
         "first_name": user.profile.first_name,
         "paternal_surname": user.profile.paternal_surname,
         "maternal_surname": user.profile.maternal_surname,
+        "rut": user.profile.rut,
         "mobile_phone": user.profile.mobile_phone,
         "landline_phone": user.profile.landline_phone,
         "birth_date": user.profile.birth_date,

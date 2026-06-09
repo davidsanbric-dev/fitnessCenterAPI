@@ -21,6 +21,7 @@ class CurrentUserResponse(APIModel):
     first_name: str
     paternal_surname: str
     maternal_surname: str
+    rut: str | None = None
     mobile_phone: str
     landline_phone: str | None = None
     birth_date: date | None = None
