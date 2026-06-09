@@ -164,8 +164,20 @@ class BookingService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
         return serialize_booking(booking)
 
+    @staticmethod
+    def _require_notes_for_completion(booking_status: str, notes: str | None) -> None:
+        # Completing a session must carry a feedback note (surfaced to the member
+        # in their Training History). Enforced server-side so the rule holds for
+        # every caller -- trainer panel, admin panel, or member app.
+        if booking_status == "COMPLETED" and not (notes or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A feedback note is required when marking a session as completed",
+            )
+
     def update_status(self, user_id: int, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> dict:
         # Adapted from UpdateAppointmentStatusCommand with gym cancellation policy extension.
+        self._require_notes_for_completion(booking_status, notes)
         booking = self.repository.get_booking(booking_id)
         if booking is None or booking.user_id != user_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
@@ -222,8 +234,29 @@ class BookingService:
         }
 
     def admin_update_status(self, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> dict:
+        self._require_notes_for_completion(booking_status, notes)
         booking = self.repository.get_booking(booking_id)
         if booking is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+        if booking.location and booking.location.location_code != location_code:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
+        booking = self.repository.update_status(booking, booking_status, notes)
+        self.notifications.notify(
+            booking.user_id,
+            "Booking updated",
+            f"Your booking is now {booking_status.lower()}.",
+            "schedule_change",
+            {"booking_id": booking.id},
+        )
+        return {"booking_id": booking.id, "booking_status": booking.booking_status, "updated_at": booking.updated_at}
+
+    def trainer_update_status(self, trainer_id: int, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> dict:
+        # Trainer self-service: a trainer may only update the status of bookings
+        # assigned to their own trainer id. Mirrors admin_update_status but scoped
+        # by ownership rather than admin/manager authorization.
+        self._require_notes_for_completion(booking_status, notes)
+        booking = self.repository.get_booking(booking_id)
+        if booking is None or booking.trainer_id != trainer_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
         if booking.location and booking.location.location_code != location_code:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")

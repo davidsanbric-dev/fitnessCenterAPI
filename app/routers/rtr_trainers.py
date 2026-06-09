@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, get_db
 from app.models import User
 from app.schemas import PaginatedResponse
-from app.schemas.scm_booking import BookingResponse
+from app.schemas.scm_booking import BookingResponse, BookingStatusResponse, BookingStatusUpdate
 from app.schemas.scm_trainer import (
     TrainerAvailabilityResponse,
     TrainerDashboardResponse,
@@ -126,6 +126,26 @@ def list_my_bookings(
         location_code=None,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.patch("/me/bookings/{booking_id}/status", response_model=BookingStatusResponse)
+def update_my_booking_status(
+    booking_id: int,
+    payload: BookingStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Trainer self-service status update, scoped to the signed-in trainer's own
+    # bookings. Used by the web panel to mark a session COMPLETED (with a
+    # required feedback note enforced in the service layer).
+    trainer = TrainerService(db)._require_self(current_user)
+    return BookingService(db).trainer_update_status(
+        trainer_id=trainer.id,
+        booking_id=booking_id,
+        booking_status=payload.booking_status,
+        location_code=payload.location_code,
+        notes=payload.notes,
     )
 
 
