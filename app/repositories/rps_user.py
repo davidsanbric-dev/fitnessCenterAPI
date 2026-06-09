@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     MemberMembership,
     MemberProfile,
+    Role,
     User,
 )
 
@@ -56,6 +57,17 @@ class UserRepository:
         self.db.commit()
         self.db.refresh(user)
         return self.get_by_id(user.id) or user
+
+    def list_staff_user_ids(self, role_names: tuple[str, ...] = ("admin", "manager")) -> list[int]:
+        # Web-app staff recipients for member-driven booking events. Auto-scoped to
+        # the active company by the tenant session filter (User is tenant-scoped);
+        # Role is the global catalogue, so it is matched by name only.
+        statement = (
+            select(User.id)
+            .join(User.role)
+            .where(Role.name.in_(role_names), User.is_active.is_(True))
+        )
+        return [int(uid) for uid in self.db.scalars(statement).all()]
 
     def count_user_bookings_for_month(self, user_id: int, year: int, month: int) -> int:
         statement = select(func.count()).select_from(User).join(User.bookings).where(

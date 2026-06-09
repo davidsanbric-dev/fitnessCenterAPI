@@ -20,6 +20,41 @@ class BookingService:
         self.user_repository = UserRepository(db)
         self.notifications = NotificationService(db)
 
+    def _member_label(self, booking: Booking) -> str:
+        profile = booking.user.profile if booking.user else None
+        if profile is not None:
+            label = f"{profile.first_name} {profile.paternal_surname}".strip()
+            if label:
+                return label
+        return booking.user.email if booking.user else "A member"
+
+    def _session_label(self, booking: Booking) -> str:
+        if booking.class_type is not None:
+            return booking.class_type.name
+        if booking.discipline is not None:
+            return booking.discipline.name
+        return "a session"
+
+    def _notify_staff_of_booking_event(
+        self, booking: Booking, title: str, body: str, notification_type: str, acting_user_id: int
+    ) -> None:
+        # Fan a member-driven booking action out to the web-app staff: the slot's
+        # linked trainer (when the trainer has a login) plus all admins/managers
+        # in the company. The acting member is excluded so they don't self-notify.
+        recipients = self.user_repository.list_staff_user_ids(("admin", "manager"))
+        if booking.trainer is not None and booking.trainer.user_id is not None:
+            recipients.append(booking.trainer.user_id)
+        recipients = [uid for uid in recipients if uid != acting_user_id]
+        if not recipients:
+            return
+        self.notifications.notify_many(
+            recipients,
+            title,
+            body,
+            notification_type,
+            {"booking_id": booking.id, "member_id": booking.user_id},
+        )
+
     def create_by_trainer(self, user: User, payload) -> dict:
         # Adapted Path A from ScheduleAppointmentCommand.
         booking_datetime = parse_datetime_parts(payload.booking_date, payload.booking_time)
@@ -55,6 +90,13 @@ class BookingService:
             user.membership.bookings_used += 1
             self.db.commit()
         self.notifications.notify(user.id, "Booking confirmed", "Your trainer session has been booked.", "booking_confirmed", {"booking_id": booking.id})
+        self._notify_staff_of_booking_event(
+            booking,
+            "New booking",
+            f"{self._member_label(booking)} booked {self._session_label(booking)} for {booking.booking_datetime:%d %b %H:%M}.",
+            "booking_created",
+            user.id,
+        )
         return serialize_booking(booking)
 
     def create_by_class_type(self, user: User, payload) -> dict:
@@ -93,6 +135,13 @@ class BookingService:
             user.membership.bookings_used += 1
             self.db.commit()
         self.notifications.notify(user.id, "Class booked", "Your class slot has been booked.", "booking_confirmed", {"booking_id": booking.id})
+        self._notify_staff_of_booking_event(
+            booking,
+            "New booking",
+            f"{self._member_label(booking)} booked {self._session_label(booking)} for {booking.booking_datetime:%d %b %H:%M}.",
+            "booking_created",
+            user.id,
+        )
         return serialize_booking(booking)
 
     def list_bookings(self, user_id: int, **filters) -> dict:
@@ -126,6 +175,14 @@ class BookingService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cancellation window has passed")
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(user_id, "Booking updated", f"Your booking is now {booking_status.lower()}.", "schedule_change", {"booking_id": booking.id})
+        staff_title = "Booking cancelled" if booking_status == "CANCELLED" else "Booking updated"
+        self._notify_staff_of_booking_event(
+            booking,
+            staff_title,
+            f"{self._member_label(booking)} {booking_status.lower()} their {self._session_label(booking)} booking for {booking.booking_datetime:%d %b %H:%M}.",
+            "schedule_change",
+            user_id,
+        )
         return {"booking_id": booking.id, "booking_status": booking.booking_status, "updated_at": booking.updated_at}
 
     def upcoming(self, user_id: int, limit: int) -> dict:

@@ -67,3 +67,10 @@ class NotificationService:
                 data=data or {},
             )
         )
+
+    def notify_many(self, user_ids: list[int], title: str, body: str, notification_type: str, data: dict | None = None) -> None:
+        # Fan-out of a single event to several recipients (e.g. staff watching a
+        # member-driven booking action). De-duplicated so a user is not notified
+        # twice when they appear via more than one role/relationship.
+        for user_id in dict.fromkeys(user_ids):
+            self.notify(user_id, title, body, notification_type, data)
