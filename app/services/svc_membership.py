@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import ConflictException
 from app.models import MembershipPlan
 from app.repositories.rps_membership import MembershipRepository
-from app.services.svc_common import serialize_membership
+from app.services.svc_common import get_or_404, serialize_membership
 
 
 # Adapted service from clinic prevision filtering concept to gym membership management reads.
@@ -31,9 +31,7 @@ class MembershipService:
         }
 
     def get_plan(self, plan_id: int) -> dict:
-        plan = self.repository.get_plan(plan_id)
-        if plan is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership plan not found")
+        plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
         return {
             "membership_plan_id": plan.id,
             "name": plan.name,
@@ -49,14 +47,12 @@ class MembershipService:
         }
 
     def get_current_membership(self, user_id: int) -> dict:
-        membership = self.repository.get_user_membership(user_id)
-        if membership is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership not found")
+        membership = get_or_404(self.repository.get_user_membership(user_id), "Membership not found")
         return serialize_membership(membership)
 
     def create_plan(self, payload) -> dict:
         if self.repository.get_by_name(payload.name):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Membership plan name already exists")
+            raise ConflictException("Membership plan name already exists")
 
         plan = self.repository.create_plan(
             MembershipPlan(
@@ -79,12 +75,10 @@ class MembershipService:
         }
 
     def update_plan(self, plan_id: int, payload) -> dict:
-        plan = self.repository.get_plan(plan_id)
-        if plan is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership plan not found")
+        plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
 
         if payload.name != plan.name and self.repository.get_by_name(payload.name):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Membership plan name already exists")
+            raise ConflictException("Membership plan name already exists")
 
         updated = self.repository.update_plan(
             plan,
@@ -108,15 +102,10 @@ class MembershipService:
         }
 
     def delete_plan(self, plan_id: int) -> dict:
-        plan = self.repository.get_plan(plan_id)
-        if plan is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membership plan not found")
+        plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
 
         if self.repository.has_dependencies(plan_id):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete membership plan with active references",
-            )
+            raise ConflictException("Cannot delete membership plan with active references")
 
         self.repository.delete_plan(plan)
         return {"message": "Membership plan deleted"}

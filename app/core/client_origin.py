@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header
+
+from app.core.exceptions import BadRequestException
 
 
 class ClientOrigin(str, Enum):
@@ -33,8 +35,5 @@ def get_client_origin(
     if origin is None:
         # Fail closed: an absent or unrecognised client cannot be mapped to an
         # allowed role bucket, so it must not be granted a session.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unknown client application",
-        )
+        raise BadRequestException("Unknown client application")
     return origin

@@ -3,11 +3,16 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    ConflictException,
+    ForbiddenException,
+    InternalServerErrorException,
+    NotFoundException,
+)
 from app.core.firebase_auth import create_or_align_firebase_account
 from app.core.push import send_push_to_tokens
 from app.core.tenancy import get_session_company
@@ -15,7 +20,7 @@ from app.models import Discipline, Location, Role, Slot, Trainer, User
 from app.repositories.rps_notification import NotificationRepository
 from app.repositories.rps_slot import SlotRepository
 from app.repositories.rps_trainer import TrainerRepository
-from app.services.svc_common import serialize_trainer_summary
+from app.services.svc_common import get_or_404, serialize_trainer_summary
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -38,9 +43,7 @@ class TrainerService:
         }
 
     def get_trainer(self, trainer_id: int) -> dict:
-        trainer = self.repository.get_trainer(trainer_id)
-        if trainer is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trainer not found")
+        trainer = get_or_404(self.repository.get_trainer(trainer_id), "Trainer not found")
         upcoming = [
             {
                 "slot_datetime": slot.slot_datetime,
@@ -70,9 +73,7 @@ class TrainerService:
         }
 
     def get_availability(self, trainer_id: int, date_from: datetime, date_to: datetime, discipline_id: int | None = None) -> dict:
-        trainer = self.repository.get_trainer(trainer_id)
-        if trainer is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trainer not found")
+        trainer = get_or_404(self.repository.get_trainer(trainer_id), "Trainer not found")
         slots = self.repository.get_availability(trainer_id, date_from, date_to, discipline_id)
         return {
             "trainer_id": trainer_id,
@@ -106,7 +107,7 @@ class TrainerService:
         # absence means the deployment was never seeded.
         role = self.db.scalar(select(Role).where(Role.name == "trainer"))
         if role is None:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Trainer role is not provisioned")
+            raise InternalServerErrorException("Trainer role is not provisioned")
 
         company_id = get_session_company(self.db)
 
@@ -124,7 +125,7 @@ class TrainerService:
         if discipline_id:
             discipline = self.db.scalar(select(Discipline).where(Discipline.id == discipline_id))
             if discipline is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
+                raise NotFoundException("Discipline not found")
 
         # Provision the backend rows first so the globally-unique email constraint
         # is the authoritative duplicate guard — it also catches cross-company
@@ -136,7 +137,7 @@ class TrainerService:
             self.db.flush()
         except IntegrityError as exc:
             self.db.rollback()
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from exc
+            raise ConflictException("Email already registered") from exc
 
         trainer = Trainer(
             trainer_code=trainer_code,
@@ -168,10 +169,7 @@ class TrainerService:
     def _require_self(self, user: User) -> Trainer:
         trainer = self.repository.get_by_user_id(user.id)
         if trainer is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No trainer profile is linked to this account",
-            )
+            raise ForbiddenException("No trainer profile is linked to this account")
         return trainer
 
     def _serialize_profile(self, trainer: Trainer, email: str) -> dict:
@@ -270,7 +268,7 @@ class TrainerService:
     def _require_own_slot(self, trainer: Trainer, slot_id: int) -> Slot:
         slot = self.slots.get_slot(slot_id)
         if slot is None or slot.trainer_id != trainer.id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Slot not found")
+            raise NotFoundException("Slot not found")
         return slot
 
     def _notify_members_of_slot_change(self, action: str, trainer: Trainer, slot: Slot) -> None:

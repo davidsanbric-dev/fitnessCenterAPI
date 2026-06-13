@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.models import Booking, User
 from app.repositories.rps_booking import BookingRepository
 from app.repositories.rps_user import UserRepository
@@ -27,16 +32,10 @@ class BookingService:
         # only by that quota (e.g. Basic 8, Premium 30, VIP 50).
         membership = user.membership
         if membership is None or membership.plan is None or membership.status != "ACTIVE":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="An active membership is required to book sessions",
-            )
+            raise ForbiddenException("An active membership is required to book sessions")
         plan = membership.plan
         if plan.max_bookings_per_month and membership.bookings_used >= plan.max_bookings_per_month:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"You have reached your monthly booking limit for the {plan.name} plan",
-            )
+            raise ConflictException(f"You have reached your monthly booking limit for the {plan.name} plan")
 
     def _member_label(self, booking: Booking) -> str:
         profile = booking.user.profile if booking.user else None
@@ -78,7 +77,7 @@ class BookingService:
         self._enforce_booking_allowance(user)
         booking_datetime = parse_datetime_parts(payload.booking_date, payload.booking_time)
         if self.repository.user_has_booking_at(user.id, booking_datetime):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You already have a booking at that time")
+            raise ConflictException("You already have a booking at that time")
         slot = self.repository.get_slot_for_trainer_booking(
             booking_datetime,
             payload.location_code,
@@ -86,7 +85,7 @@ class BookingService:
             payload.discipline_code,
         )
         if slot is None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is not available")
+            raise ConflictException("Selected slot is not available")
         booking = Booking(
             user_id=user.id,
             slot_id=slot.id,
@@ -123,7 +122,7 @@ class BookingService:
         self._enforce_booking_allowance(user)
         booking_datetime = parse_datetime_parts(payload.booking_date, payload.booking_time)
         if self.repository.user_has_booking_at(user.id, booking_datetime):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You already have a booking at that time")
+            raise ConflictException("You already have a booking at that time")
         slot = self.repository.get_slot_for_class_type_booking(
             booking_datetime,
             payload.location_code,
@@ -132,7 +131,7 @@ class BookingService:
             payload.slot_assignment_code,
         )
         if slot is None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected slot is not available")
+            raise ConflictException("Selected slot is not available")
         booking = Booking(
             user_id=user.id,
             slot_id=slot.id,
@@ -179,9 +178,9 @@ class BookingService:
     def get_booking(self, user_id: int, booking_id: int, location_code: str) -> dict:
         booking = self.repository.get_booking(booking_id)
         if booking is None or booking.user_id != user_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+            raise NotFoundException("Booking not found")
         if booking.location and booking.location.location_code != location_code:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
+            raise NotFoundException("Booking not found for location")
         return serialize_booking(booking)
 
     @staticmethod
@@ -190,21 +189,18 @@ class BookingService:
         # in their Training History). Enforced server-side so the rule holds for
         # every caller -- trainer panel, admin panel, or member app.
         if booking_status == "COMPLETED" and not (notes or "").strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A feedback note is required when marking a session as completed",
-            )
+            raise BadRequestException("A feedback note is required when marking a session as completed")
 
     def update_status(self, user_id: int, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> dict:
         # Adapted from UpdateAppointmentStatusCommand with gym cancellation policy extension.
         self._require_notes_for_completion(booking_status, notes)
         booking = self.repository.get_booking(booking_id)
         if booking is None or booking.user_id != user_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+            raise NotFoundException("Booking not found")
         if booking.location and booking.location.location_code != location_code:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
+            raise NotFoundException("Booking not found for location")
         if booking_status == "CANCELLED" and booking.booking_datetime - datetime.utcnow() < timedelta(hours=2):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cancellation window has passed")
+            raise BadRequestException("Cancellation window has passed")
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(user_id, "Booking updated", f"Your booking is now {booking_status.lower()}.", "schedule_change", {"booking_id": booking.id})
         staff_title = "Booking cancelled" if booking_status == "CANCELLED" else "Booking updated"
@@ -257,9 +253,9 @@ class BookingService:
         self._require_notes_for_completion(booking_status, notes)
         booking = self.repository.get_booking(booking_id)
         if booking is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+            raise NotFoundException("Booking not found")
         if booking.location and booking.location.location_code != location_code:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
+            raise NotFoundException("Booking not found for location")
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(
             booking.user_id,
@@ -277,9 +273,9 @@ class BookingService:
         self._require_notes_for_completion(booking_status, notes)
         booking = self.repository.get_booking(booking_id)
         if booking is None or booking.trainer_id != trainer_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+            raise NotFoundException("Booking not found")
         if booking.location and booking.location.location_code != location_code:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found for location")
+            raise NotFoundException("Booking not found for location")
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(
             booking.user_id,

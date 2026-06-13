@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.client_origin import ClientOrigin
 from app.core.config import settings
+from app.core.exceptions import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+    UnauthorizedException,
+)
 from app.core.firebase_auth import set_firebase_custom_claims
 from app.core.tenancy import set_session_company
 from app.models import (
@@ -37,17 +43,17 @@ class AuthService:
             for company in companies:
                 if company.slug.lower() == wanted:
                     return company
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown company")
+            raise NotFoundException("Unknown company")
         if len(companies) == 1:
             return companies[0]
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="company is required")
+        raise BadRequestException("company is required")
 
     def register(self, payload) -> dict:
         # Adapted from clinic RegisterPatient command; provisions the backend record while Firebase owns the credential.
         # Email uniqueness is global, so this check must run before the tenant is
         # set (otherwise it would only see the resolved company's users).
         if self.user_repository.get_by_email(payload.email):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+            raise ConflictException("Email already registered")
 
         # Scope the session to the chosen company so the default-plan lookup and
         # all new rows (user, profile, membership) are confined to it.
@@ -87,13 +93,13 @@ class AuthService:
         # Adapted from clinic GetPatient query projection.
         user = self.user_repository.get_by_id(user_id)
         if user is None or user.profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("User not found")
         return serialize_user(user)
 
     def update_profile(self, user_id: int, payload: dict) -> dict:
         user = self.user_repository.get_by_id(user_id)
         if user is None or user.profile is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("User not found")
         updated = self.user_repository.update_profile(user, payload)
         return serialize_user(updated)
 
@@ -163,11 +169,11 @@ class AuthService:
         email = str(payload.get("email") or "").strip().lower()
 
         if not firebase_uid or not email:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
+            raise UnauthorizedException("Invalid Firebase token")
 
         user = self.user_repository.get_by_email(email)
         if user is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User authenticated with Firebase but not provisioned in backend")
+            raise ForbiddenException("User authenticated with Firebase but not provisioned in backend")
 
         role, permissions = self.resolve_role_permissions(user)
 
@@ -176,10 +182,7 @@ class AuthService:
         # not a privilege gate: role is resolved from the verified email above, so
         # a mismatched origin can only reject a login, never elevate one.
         if role not in self._ALLOWED_ROLES_BY_ORIGIN[origin]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This account is not allowed to sign in from this application",
-            )
+            raise ForbiddenException("This account is not allowed to sign in from this application")
 
         profile = user.profile
         profile_payload = {

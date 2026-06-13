@@ -3,12 +3,12 @@ from __future__ import annotations
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     status,
 )
 from sqlalchemy.orm import Session
 
 from app.core.client_origin import ClientOrigin, get_client_origin
+from app.core.exceptions import ForbiddenException, NotFoundException
 from app.core.dependencies import get_current_user, get_db
 from app.models import User
 from app.schemas.scm_auth import (
@@ -60,11 +60,11 @@ def get_user_by_email(
 ):
     auth_service = AuthService(db)
     if not auth_service.is_admin_or_manager(current_user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions for this resource")
+        raise ForbiddenException("Insufficient permissions for this resource")
 
     user = auth_service.user_repository.get_by_email(email.strip().lower())
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise NotFoundException("User not found")
 
     role, permissions = auth_service.resolve_role_permissions(user)
     profile = user.profile

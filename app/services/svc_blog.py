@@ -7,17 +7,18 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.exceptions import NotFoundException, UnprocessableEntityException
 from app.core.push import send_push_to_tokens
 from app.core.tenancy import get_session_company
 from app.models import Blog
 from app.repositories.rps_blog import BlogRepository
 from app.repositories.rps_notification import NotificationRepository
 from app.schemas.scm_blog import BlogUpsertRequest
+from app.services.svc_common import get_or_404
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -48,18 +49,16 @@ class BlogService:
         }
 
     def get_blog(self, blog_id: int) -> dict:
-        blog = self.repository.get_blog(blog_id)
-        if blog is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Blog entry not found")
+        blog = get_or_404(self.repository.get_blog(blog_id), "Blog entry not found")
         return self._serialize(blog)
 
     # ---- writes ----------------------------------------------------------
     def create_blog(self, payload: BlogUpsertRequest) -> dict:
         title = (payload.title or "").strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Title is required")
+            raise UnprocessableEntityException("Title is required")
         if not payload.hero_image:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Hero image is required")
+            raise UnprocessableEntityException("Hero image is required")
 
         hero_image_path = self._save_image(payload.hero_image)
         blog = self.repository.create_blog(
@@ -69,13 +68,11 @@ class BlogService:
         return self._serialize(blog)
 
     def update_blog(self, blog_id: int, payload: BlogUpsertRequest) -> dict:
-        blog = self.repository.get_blog(blog_id)
-        if blog is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Blog entry not found")
+        blog = get_or_404(self.repository.get_blog(blog_id), "Blog entry not found")
 
         title = (payload.title or "").strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Title is required")
+            raise UnprocessableEntityException("Title is required")
 
         updates: dict = {"title": title, "text": payload.text or ""}
         # Only replace the image when a new one is supplied; otherwise keep it.
@@ -90,9 +87,7 @@ class BlogService:
         return self._serialize(updated)
 
     def delete_blog(self, blog_id: int) -> dict:
-        blog = self.repository.get_blog(blog_id)
-        if blog is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Blog entry not found")
+        blog = get_or_404(self.repository.get_blog(blog_id), "Blog entry not found")
         image_path = blog.hero_image_path
         self.repository.delete_blog(blog)
         if image_path:
@@ -106,7 +101,7 @@ class BlogService:
         # Reject any path traversal: only a bare filename inside the base dir.
         target = (base / Path(filename).name).resolve()
         if base not in target.parents or not target.is_file():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+            raise NotFoundException("Image not found")
         return FileResponse(target)
 
     # ---- notifications ---------------------------------------------------
@@ -145,14 +140,11 @@ class BlogService:
         mime, payload = self._parse_image(raw)
         extension = _ALLOWED_IMAGE_TYPES.get(mime)
         if extension is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Unsupported image type. Allowed: PNG, JPEG, WEBP, GIF.",
-            )
+            raise UnprocessableEntityException("Unsupported image type. Allowed: PNG, JPEG, WEBP, GIF.")
         try:
             data = base64.b64decode(payload, validate=True)
         except (binascii.Error, ValueError):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid image encoding")
+            raise UnprocessableEntityException("Invalid image encoding")
 
         company_id = get_session_company(self.db) or 0
         filename = f"{company_id}_{uuid4().hex}{extension}"

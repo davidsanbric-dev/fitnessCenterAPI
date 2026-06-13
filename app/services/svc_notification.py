@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import NotFoundException
 from app.models import Notification
 from app.repositories.rps_notification import NotificationRepository
+from app.services.svc_common import get_or_404
 
 
 # Gym-specific service for notification lifecycle based on adapted booking events.
@@ -34,9 +35,7 @@ class NotificationService:
         }
 
     def mark_read(self, user_id: int, notification_id: int) -> dict:
-        notification = self.repository.get_notification(user_id, notification_id)
-        if notification is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+        notification = get_or_404(self.repository.get_notification(user_id, notification_id), "Notification not found")
         notification = self.repository.mark_read(notification)
         return {"id": notification.id, "is_read": notification.is_read}
 
@@ -54,7 +53,7 @@ class NotificationService:
 
     def delete_device(self, user_id: int, device_id: int) -> bool:
         if not self.repository.delete_device(user_id, device_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+            raise NotFoundException("Device not found")
         return True
 
     def notify(self, user_id: int, title: str, body: str, notification_type: str, data: dict | None = None) -> None:

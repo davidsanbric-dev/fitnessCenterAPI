@@ -4,10 +4,15 @@ from functools import lru_cache
 from pathlib import Path
 
 import firebase_admin
-from fastapi import HTTPException, status
 from firebase_admin import auth, credentials
 
 from app.core.config import settings
+from app.core.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    InternalServerErrorException,
+    UnauthorizedException,
+)
 
 
 @lru_cache(maxsize=1)
@@ -33,24 +38,24 @@ def _get_firebase_app() -> firebase_admin.App:
 
 def verify_firebase_token(token: str) -> dict:
     if not token or not token.strip():
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise UnauthorizedException("Not authenticated")
 
     try:
         _get_firebase_app()
         decoded = auth.verify_id_token(token, check_revoked=True)
     except auth.ExpiredIdTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired") from exc
+        raise UnauthorizedException("Token expired") from exc
     except auth.RevokedIdTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked") from exc
+        raise UnauthorizedException("Token revoked") from exc
     except auth.InvalidIdTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token") from exc
+        raise UnauthorizedException("Invalid Firebase token") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase auth is not configured") from exc
+        raise InternalServerErrorException("Firebase auth is not configured") from exc
 
     # Email-based identity/role resolution requires a verified email to prevent
     # spoofing an allowlisted (e.g. admin) address via an unverified sign-up.
     if decoded.get("email_verified") is not True:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
+        raise ForbiddenException("Email not verified")
     return decoded
 
 
@@ -65,10 +70,10 @@ def create_or_align_firebase_account(email: str, password: str) -> str:
     is realigned (password reset, marked verified) rather than duplicated.
     """
     if not email or not email.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing email")
+        raise BadRequestException("Missing email")
     if not password or len(password) < 6:
         # Firebase rejects passwords shorter than 6 characters; surface a clean 400.
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters")
+        raise BadRequestException("Password must be at least 6 characters")
 
     try:
         _get_firebase_app()
@@ -80,15 +85,15 @@ def create_or_align_firebase_account(email: str, password: str) -> str:
         auth.update_user(user.uid, password=password, email_verified=True)
         return user.uid
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase auth is not configured") from exc
+        raise InternalServerErrorException("Firebase auth is not configured") from exc
 
 
 def set_firebase_custom_claims(uid: str, claims: dict) -> None:
     if not uid or not uid.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Firebase user id")
+        raise BadRequestException("Missing Firebase user id")
 
     try:
         _get_firebase_app()
         auth.set_custom_user_claims(uid, claims)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Firebase auth is not configured") from exc
+        raise InternalServerErrorException("Firebase auth is not configured") from exc

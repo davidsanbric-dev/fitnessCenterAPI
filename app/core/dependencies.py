@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.exceptions import UnauthorizedException
 from app.core.firebase_auth import verify_firebase_token
 from app.core.db import SessionLocal
 from app.core.tenancy import set_session_company
@@ -28,12 +29,12 @@ def get_current_user(
 	db: Session = Depends(get_db),
 ) -> User:
 	if credentials is None:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+		raise UnauthorizedException("Not authenticated")
 
 	payload = verify_firebase_token(credentials.credentials)
 	email = str(payload.get("email") or "").strip().lower()
 	if not email:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing email")
+		raise UnauthorizedException("Token missing email")
 
 	statement = (
 		select(User)
@@ -42,7 +43,7 @@ def get_current_user(
 	)
 	user = db.scalar(statement)
 	if user is None or not user.is_active:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+		raise UnauthorizedException("User not found")
 	# Establish the tenant scope for the rest of the request: every subsequent
 	# query on this session is now auto-filtered to the user's company. The
 	# lookup above ran unscoped on purpose -- the company is only known now.

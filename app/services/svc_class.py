@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories.rps_class import ClassRepository
+from app.services.svc_common import get_or_404
 
 
 # Adapted service from clinic GetCapabilities hierarchy and service-availability contracts.
@@ -58,9 +58,7 @@ class ClassService:
         }
 
     def get_class_type(self, class_type_id: int) -> dict:
-        item = self.repository.get_class_type(class_type_id)
-        if item is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class type not found")
+        item = get_or_404(self.repository.get_class_type(class_type_id), "Class type not found")
         return {
             "class_type_id": item.id,
             "name": item.name,
@@ -79,9 +77,7 @@ class ClassService:
         }
 
     def get_preparation(self, class_type_id: int) -> dict:
-        item = self.repository.get_class_type(class_type_id)
-        if item is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class type not found")
+        item = get_or_404(self.repository.get_class_type(class_type_id), "Class type not found")
         return {
             "class_type_id": item.id,
             "name": item.name,
@@ -98,9 +94,7 @@ class ClassService:
         trainer_id: int | None,
         query_type: str | None,
     ) -> dict:
-        item = self.repository.get_class_type(class_type_id)
-        if item is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class type not found")
+        item = get_or_404(self.repository.get_class_type(class_type_id), "Class type not found")
         slots = self.repository.get_class_type_availability(class_type_id, location_code, date_from, date_to, trainer_id, query_type)
         return {
             "class_type_id": class_type_id,

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories.rps_discipline import DisciplineRepository
+from app.services.svc_common import get_or_404
 
 
 # Adapted service from clinic specialty discovery and availability flows.
@@ -33,9 +33,7 @@ class DisciplineService:
         }
 
     def get_discipline(self, discipline_id: int) -> dict:
-        discipline = self.repository.get_discipline(discipline_id)
-        if discipline is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
+        discipline = get_or_404(self.repository.get_discipline(discipline_id), "Discipline not found")
         return {
             "discipline_id": discipline.id,
             "discipline_code": discipline.discipline_code,
@@ -54,9 +52,7 @@ class DisciplineService:
         }
 
     def get_trainers(self, discipline_id: int, membership_plan_id: int | None, location_code: str | None) -> dict:
-        discipline = self.repository.get_discipline(discipline_id)
-        if discipline is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
+        discipline = get_or_404(self.repository.get_discipline(discipline_id), "Discipline not found")
         trainers = self.repository.get_trainers(discipline_id, membership_plan_id, location_code)
         return {
             "items": [
@@ -79,9 +75,7 @@ class DisciplineService:
         trainer_id: int | None,
         location_code: str | None,
     ) -> dict:
-        discipline = self.repository.get_discipline(discipline_id)
-        if discipline is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discipline not found")
+        discipline = get_or_404(self.repository.get_discipline(discipline_id), "Discipline not found")
         slots = self.repository.get_availability(discipline_id, date_from, date_to, trainer_id, location_code)
         return {
             "discipline_id": discipline_id,
