@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
+from app.domain.enums import BookingStatus, MembershipStatus
 
 
 # Adapted associations: clinic Professional/Specialty and Prevision relations -> gym Trainer/Discipline and MembershipPlan relations.
@@ -273,7 +274,7 @@ class Booking(TenantMixin, Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
 	slot_id: Mapped[int | None] = mapped_column(ForeignKey("slots.id"), nullable=True)
-	booking_status: Mapped[str] = mapped_column(String(50), default="CONFIRMED", index=True)
+	booking_status: Mapped[str] = mapped_column(String(50), default=BookingStatus.CONFIRMED, index=True)
 	booking_datetime: Mapped[datetime] = mapped_column(DateTime, index=True)
 	scheduled_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 	updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -334,7 +335,7 @@ class MemberMembership(TenantMixin, Base):
 	membership_plan_id: Mapped[int] = mapped_column(ForeignKey("membership_plans.id"))
 	start_date: Mapped[date] = mapped_column(Date)
 	end_date: Mapped[date] = mapped_column(Date)
-	status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+	status: Mapped[str] = mapped_column(String(50), default=MembershipStatus.ACTIVE)
 	bookings_used: Mapped[int] = mapped_column(Integer, default=0)
 
 	user: Mapped[User] = relationship(back_populates="membership")

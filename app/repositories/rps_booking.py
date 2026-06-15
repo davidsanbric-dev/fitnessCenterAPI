@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.domain import BookingStatus
 from app.models import (
     Booking,
     ClassType,
@@ -108,7 +109,7 @@ class BookingRepository:
         statement = select(func.count()).select_from(Booking).where(
             Booking.user_id == user_id,
             Booking.booking_datetime == booking_datetime,
-            Booking.booking_status.in_(["PENDING", "CONFIRMED"]),
+            Booking.booking_status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
         )
         return bool(self.db.scalar(statement))
 
@@ -179,7 +180,7 @@ class BookingRepository:
         # Adapted from clinic UpdateAppointmentStatus behavior and slot release rules.
         booking.booking_status = booking_status
         booking.notes = notes or booking.notes
-        if booking.slot is not None and booking_status == "CANCELLED":
+        if booking.slot is not None and booking_status == BookingStatus.CANCELLED:
             booking.slot.is_available = True
         self.db.commit()
         self.db.refresh(booking)

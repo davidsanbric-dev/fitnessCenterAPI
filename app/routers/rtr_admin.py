@@ -24,7 +24,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.get("/home", response_model=AdminHomeResponse)
 def get_admin_home(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return AdminService(db).get_home()
 
 
@@ -41,7 +41,7 @@ def list_admin_bookings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return BookingService(db).list_all_bookings(
         booking_status=booking_status,
         date_from=date_from,
@@ -61,7 +61,7 @@ def update_admin_booking_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return BookingService(db).admin_update_status(
         booking_id=booking_id,
         booking_status=payload.booking_status,
@@ -78,7 +78,7 @@ def create_admin_trainer(
 ):
     # Staff-only: provisions a new trainer (Firebase credential + user + personal
     # data) in the admin's company. See TrainerService.admin_create_trainer.
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return TrainerService(db).admin_create_trainer(payload.model_dump())
 
 
@@ -88,7 +88,7 @@ def create_admin_membership_plan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return MembershipService(db).create_plan(payload)
 
 
@@ -99,7 +99,7 @@ def update_admin_membership_plan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return MembershipService(db).update_plan(plan_id, payload)
 
 
@@ -109,5 +109,5 @@ def delete_admin_membership_plan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_admin_or_manager(db, current_user)
+    ensure_admin_or_manager(current_user)
     return MembershipService(db).delete_plan(plan_id)

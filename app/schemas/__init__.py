@@ -1,25 +1,7 @@
 from __future__ import annotations
 
-from typing import Generic, TypeVar
-
-from pydantic import BaseModel, ConfigDict
-
-T = TypeVar("T")
-
-
-class APIModel(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PaginatedResponse(APIModel, Generic[T]):
-    items: list[T]
-    total: int
-    page: int
-    page_size: int
-
-
-class MessageResponse(APIModel):
-    message: str
-
+# Shared schema primitives live in scm_common (parallel to svc_common); re-exported
+# here so the established ``from app.schemas import APIModel`` imports keep working.
+from app.schemas.scm_common import APIModel, MessageResponse, PaginatedResponse
 
 __all__ = ["APIModel", "MessageResponse", "PaginatedResponse"]

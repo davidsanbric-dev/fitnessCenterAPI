@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.client_origin import ClientOrigin
+from app.domain.enums import BookingStatus
 
 
 class Settings(BaseSettings):
@@ -28,13 +32,10 @@ class Settings(BaseSettings):
 	firebase_project_id: str | None = None
 	firebase_service_account_path: str | None = None
 	cors_origins: list[str] = Field(default_factory=list)
+	# Display labels for booking statuses, keyed off the domain vocabulary so the
+	# set can never drift from BookingStatus (label is the title-cased value).
 	booking_statuses: dict[str, str] = Field(
-		default_factory=lambda: {
-			"PENDING": "Pending",
-			"CONFIRMED": "Confirmed",
-			"CANCELLED": "Cancelled",
-			"COMPLETED": "Completed",
-		}
+		default_factory=lambda: {status.value: status.value.title() for status in BookingStatus}
 	)
 
 	def _load_demo_users(self) -> dict[str, dict[str, str]]:
@@ -85,3 +86,61 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+# Permission sets keyed by the role name stored in the ``roles`` table. The
+# role catalogue and the per-user assignment both live in the database (see
+# the seed migration); this only maps a resolved role name to its grants.
+PERMISSIONS_BY_ROLE: dict[str, list[str]] = {
+	"admin": [
+		"admin.dashboard.read",
+		"bookings.read",
+		"bookings.write",
+		"schedule.read",
+		"trainers.read",
+		"disciplines.read",
+		"memberships.read",
+		"notifications.read",
+	],
+	"manager": [
+		"admin.dashboard.read",
+		"bookings.read",
+		"schedule.read",
+		"trainers.read",
+		"disciplines.read",
+		"memberships.read",
+	],
+	"member": ["member.home.read", "bookings.read", "bookings.write"],
+	# The trainer signs into the web app but, unlike admin/manager, is scoped
+	# to its own slots, bookings, profile and a home dashboard. The grants
+	# below back those four web modules.
+	"trainer": [
+		"trainer.home.read",
+		"schedule.read",
+		"schedule.write",
+		"bookings.read",
+		"trainer.profile.read",
+		"trainer.profile.write",
+	],
+}
+
+STAFF_ROLES: frozenset[str] = frozenset({"admin", "manager"})
+
+# Role buckets each deployed application is allowed to sign in as. The mobile
+# app serves members; the web app serves staff (admin/manager).
+ALLOWED_ROLES_BY_ORIGIN: dict[ClientOrigin, frozenset[str]] = {
+	ClientOrigin.MOBILE: frozenset({"member"}),
+	ClientOrigin.WEB: frozenset({"admin", "manager", "trainer"}),
+}
+
+# Blog hero-image upload contract. Allowed image content types -> file extension
+# written to the bind volume (see ``blog_images_path``); the regex matches the
+# ``data:<mime>;base64,<payload>`` data-URL the clients send.
+ALLOWED_IMAGE_TYPES: dict[str, str] = {
+	"image/png": ".png",
+	"image/jpeg": ".jpg",
+	"image/jpg": ".jpg",
+	"image/webp": ".webp",
+	"image/gif": ".gif",
+}
+DATA_URL_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<payload>.+)$", re.DOTALL)

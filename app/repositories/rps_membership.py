@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.domain import MembershipStatus
 from app.models import (
     MemberMembership,
     MembershipPlan,
@@ -30,6 +33,28 @@ class MembershipRepository:
 
     def get_by_name(self, name: str) -> MembershipPlan | None:
         return self.db.scalar(select(MembershipPlan).where(MembershipPlan.name == name))
+
+    def get_default_plan(self) -> MembershipPlan | None:
+        # The cheapest plan is treated as the default ("basic") plan assigned at
+        # registration.
+        return self.db.scalar(select(MembershipPlan).order_by(MembershipPlan.price))
+
+    def create_default_membership(self, user_id: int, plan: MembershipPlan) -> MemberMembership:
+        # Provisions a fresh active membership on the given plan, running from
+        # today through the plan's duration. Used when a member is registered.
+        today = date.today()
+        membership = MemberMembership(
+            user_id=user_id,
+            membership_plan_id=plan.id,
+            start_date=today,
+            end_date=today + timedelta(days=plan.duration_days),
+            status=MembershipStatus.ACTIVE,
+            bookings_used=0,
+        )
+        self.db.add(membership)
+        self.db.commit()
+        self.db.refresh(membership)
+        return membership
 
     def create_plan(self, plan: MembershipPlan) -> MembershipPlan:
         self.db.add(plan)

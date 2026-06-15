@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from app.schemas import APIModel
+
+if TYPE_CHECKING:
+    from app.models import DeviceToken, Notification
 
 
 # Gym-specific extension tied to adapted booking lifecycle events.
@@ -15,6 +18,18 @@ class NotificationResponse(APIModel):
     is_read: bool
     data: dict
     created_at: datetime
+
+    @classmethod
+    def from_model(cls, notification: Notification) -> NotificationResponse:
+        return cls(
+            id=notification.id,
+            title=notification.title,
+            body=notification.body,
+            type=notification.type,
+            is_read=notification.is_read,
+            data=notification.data,
+            created_at=notification.created_at,
+        )
 
 
 class NotificationsListResponse(APIModel):
@@ -30,6 +45,10 @@ class NotificationReadResponse(APIModel):
     # Read-state mutation response.
     id: int
     is_read: bool
+
+    @classmethod
+    def from_model(cls, notification: Notification) -> NotificationReadResponse:
+        return cls(id=notification.id, is_read=notification.is_read)
 
 
 class ReadAllResponse(APIModel):
@@ -48,3 +67,7 @@ class DeviceTokenResponse(APIModel):
     id: int
     token: str
     platform: str
+
+    @classmethod
+    def from_model(cls, device: DeviceToken) -> DeviceTokenResponse:
+        return cls(id=device.id, token=device.token, platform=device.platform)

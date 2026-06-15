@@ -69,6 +69,53 @@ class SlotRepository:
         total = int(self.db.scalar(count_statement) or 0)
         return list(items), total
 
+    def get_availability_by_discipline(
+        self,
+        discipline_id: int,
+        date_from: datetime,
+        date_to: datetime,
+        trainer_id: int | None = None,
+        location_code: str | None = None,
+    ) -> list[Slot]:
+        # Adapted from clinic specialty slot search window.
+        statement = (
+            select(Slot)
+            .options(selectinload(Slot.trainer).selectinload(Trainer.disciplines))
+            .where(
+                Slot.discipline_id == discipline_id,
+                Slot.slot_datetime >= date_from,
+                Slot.slot_datetime <= date_to,
+                Slot.is_available.is_(True),
+            )
+        )
+        if trainer_id is not None:
+            statement = statement.where(Slot.trainer_id == trainer_id)
+        if location_code is not None:
+            statement = statement.join(Slot.location).where(Location.location_code == location_code)
+        return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())
+
+    def get_availability_by_trainer(
+        self,
+        trainer_id: int,
+        date_from: datetime,
+        date_to: datetime,
+        discipline_id: int | None = None,
+    ) -> list[Slot]:
+        # Adapted from clinic GetAvailableAppointments for a specific professional.
+        statement = (
+            select(Slot)
+            .options(selectinload(Slot.discipline))
+            .where(
+                Slot.trainer_id == trainer_id,
+                Slot.slot_datetime >= date_from,
+                Slot.slot_datetime <= date_to,
+                Slot.is_available.is_(True),
+            )
+        )
+        if discipline_id is not None:
+            statement = statement.where(Slot.discipline_id == discipline_id)
+        return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())
+
     # ---- trainer-owned slot management ---------------------------------------
 
     def list_for_trainer(self, trainer_id: int) -> list[Slot]:

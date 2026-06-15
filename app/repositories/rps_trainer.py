@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -50,6 +48,9 @@ class TrainerRepository:
         items = self.db.scalars(statement.order_by(Trainer.full_name).offset((page - 1) * page_size).limit(page_size)).all()
         return list(items), total
 
+    def get_max_trainer_code(self, company_id: int) -> int | None:
+        return self.db.scalar(select(func.max(Trainer.trainer_code)).where(Trainer.company_id == company_id))
+
     def get_by_user_id(self, user_id: int) -> Trainer | None:
         # Resolve the staff trainer linked to a signed-in user (see Trainer.user_id).
         statement = (
@@ -75,25 +76,3 @@ class TrainerRepository:
             .where(Trainer.id == trainer_id)
         )
         return self.db.scalar(statement)
-
-    def get_availability(
-        self,
-        trainer_id: int,
-        date_from: datetime,
-        date_to: datetime,
-        discipline_id: int | None = None,
-    ) -> list[Slot]:
-        # Adapted from clinic GetAvailableAppointments for a specific professional.
-        statement = (
-            select(Slot)
-            .options(selectinload(Slot.discipline))
-            .where(
-                Slot.trainer_id == trainer_id,
-                Slot.slot_datetime >= date_from,
-                Slot.slot_datetime <= date_to,
-                Slot.is_available.is_(True),
-            )
-        )
-        if discipline_id is not None:
-            statement = statement.where(Slot.discipline_id == discipline_id)
-        return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())

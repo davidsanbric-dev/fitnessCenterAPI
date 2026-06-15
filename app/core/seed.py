@@ -6,30 +6,7 @@ import uuid
 import sqlalchemy as sa
 
 from app.core.config import settings
-
-
-def _rut_check_digit(body: int) -> str:
-	# Standard Chilean RUT verifier digit (modulo 11), so seeded RUTs are
-	# well-formed and pass client-side validation/formatting.
-	total = 0
-	factor = 2
-	for digit in reversed(str(body)):
-		total += int(digit) * factor
-		factor = 2 if factor == 7 else factor + 1
-	remainder = 11 - (total % 11)
-	if remainder == 11:
-		return "0"
-	if remainder == 10:
-		return "K"
-	return str(remainder)
-
-
-def _deterministic_rut(email: str) -> str:
-	# Deterministic 8-digit RUT body derived from the email so re-running the
-	# seed/backfill always yields the same value for a given member (idempotent)
-	# without a random() that would drift between runs.
-	body = 10_000_000 + (int(hashlib.md5(email.encode()).hexdigest()[:8], 16) % 15_000_000)
-	return f"{body}-{_rut_check_digit(body)}"
+from app.domain import Rut
 
 # Advisory-lock key serialising concurrent seeders (e.g. multiple workers running
 # lifespan startup at once). Held for the duration of the calling transaction, it
@@ -367,7 +344,7 @@ def _seed_companies(bind) -> dict[str, int]:
 def _seed_roles(bind) -> None:
 	# Roles are the global authorization catalogue (not company-scoped). The
 	# catalogue must cover every role the API can resolve (see
-	# AuthService._PERMISSIONS_BY_ROLE), even those no demo user currently uses.
+	# config.PERMISSIONS_BY_ROLE), even those no demo user currently uses.
 	for role_name in ("admin", "manager", "member", "trainer"):
 		bind.execute(
 			sa.text(
@@ -430,7 +407,7 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 			# the NOT NULL mobile_phone column is always satisfied without random().
 			fallback_phone = "+569" + hashlib.md5(email.encode()).hexdigest()[:8]
 			# Hardcoded RUT when known, otherwise a deterministic well-formed value.
-			member_rut = profile.get("rut") or _deterministic_rut(email)
+			member_rut = profile.get("rut") or str(Rut.deterministic_for(email))
 			bind.execute(
 				sa.text(
 					"INSERT INTO member_profiles ("

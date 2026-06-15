@@ -7,8 +7,9 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from app.core.authorization import ensure_admin_or_manager, resolve_role_permissions
 from app.core.client_origin import ClientOrigin, get_client_origin
-from app.core.exceptions import ForbiddenException, NotFoundException
+from app.core.exceptions import NotFoundException
 from app.core.dependencies import get_current_user, get_db
 from app.models import User
 from app.schemas.scm_auth import (
@@ -58,30 +59,11 @@ def get_user_by_email(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    auth_service = AuthService(db)
-    if not auth_service.is_admin_or_manager(current_user):
-        raise ForbiddenException("Insufficient permissions for this resource")
+    ensure_admin_or_manager(current_user)
 
-    user = auth_service.user_repository.get_by_email(email.strip().lower())
+    user = AuthService(db).user_repository.get_by_email(email.strip().lower())
     if user is None:
         raise NotFoundException("User not found")
 
-    role, permissions = auth_service.resolve_role_permissions(user)
-    profile = user.profile
-    return {
-        "id": user.id,
-        "email": user.email,
-        "role": role,
-        "permissions": permissions,
-        "profile": {
-            "first_name": profile.first_name if profile else "",
-            "last_name": " ".join(
-                item
-                for item in [
-                    profile.paternal_surname if profile else "",
-                    profile.maternal_surname if profile else "",
-                ]
-                if item
-            ).strip(),
-        },
-    }
+    role, permissions = resolve_role_permissions(user)
+    return AppUserContext.from_user(user, role, permissions)

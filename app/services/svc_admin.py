@@ -1,46 +1,27 @@
 from __future__ import annotations
 
-from datetime import datetime
-
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Booking, MemberMembership, Notification
+from app.domain import BookingStatus
+from app.repositories.rps_admin import AdminRepository
+from app.schemas.scm_admin import AdminHomeResponse, AdminKpiSummary
 
 
 class AdminService:
     def __init__(self, db: Session):
         self.db = db
+        self.admin_repository = AdminRepository(db)
 
-    def get_home(self) -> dict:
-        total_bookings = int(self.db.scalar(select(func.count()).select_from(Booking)) or 0)
-        confirmed_bookings = int(
-            self.db.scalar(select(func.count()).select_from(Booking).where(Booking.booking_status == "CONFIRMED")) or 0
+    def get_home(self) -> AdminHomeResponse:
+        repo = self.admin_repository
+        return AdminHomeResponse(
+            kpis=AdminKpiSummary(
+                total_bookings=repo.count_bookings(),
+                confirmed_bookings=repo.count_bookings_by_status(BookingStatus.CONFIRMED),
+                cancelled_bookings=repo.count_bookings_by_status(BookingStatus.CANCELLED),
+                upcoming_bookings=repo.count_upcoming_bookings(),
+                total_memberships=repo.count_memberships(),
+                unread_notifications=repo.count_unread_notifications(),
+            ),
+            status_breakdown=repo.booking_status_breakdown(),
         )
-        cancelled_bookings = int(
-            self.db.scalar(select(func.count()).select_from(Booking).where(Booking.booking_status == "CANCELLED")) or 0
-        )
-        upcoming_bookings = int(
-            self.db.scalar(select(func.count()).select_from(Booking).where(Booking.booking_datetime >= datetime.utcnow())) or 0
-        )
-        total_memberships = int(self.db.scalar(select(func.count()).select_from(MemberMembership)) or 0)
-        unread_notifications = int(
-            self.db.scalar(select(func.count()).select_from(Notification).where(Notification.is_read.is_(False))) or 0
-        )
-
-        rows = self.db.execute(
-            select(Booking.booking_status, func.count()).group_by(Booking.booking_status)
-        ).all()
-        status_breakdown = {str(status): int(total) for status, total in rows}
-
-        return {
-            "kpis": {
-                "total_bookings": total_bookings,
-                "confirmed_bookings": confirmed_bookings,
-                "cancelled_bookings": cancelled_bookings,
-                "upcoming_bookings": upcoming_bookings,
-                "total_memberships": total_memberships,
-                "unread_notifications": unread_notifications,
-            },
-            "status_breakdown": status_breakdown,
-        }

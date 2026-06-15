@@ -5,101 +5,50 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException
 from app.models import MembershipPlan
 from app.repositories.rps_membership import MembershipRepository
-from app.services.svc_common import get_or_404, serialize_membership
+from app.schemas.scm_membership import (
+    AdminMembershipPlanUpsertRequest,
+    CurrentMembershipResponse,
+    MembershipPlanDetailResponse,
+    MembershipPlanResponse,
+)
+from app.services.svc_common import get_or_404
 
 
-# Adapted service from clinic prevision filtering concept to gym membership management reads.
 class MembershipService:
     def __init__(self, db: Session):
         self.repository = MembershipRepository(db)
 
+    def _validate_unique_plan_name(self, name: str, *, current: MembershipPlan | None = None) -> None:
+        if current is not None and name == current.name:
+            return
+        if self.repository.get_by_name(name):
+            raise ConflictException("Membership plan name already exists")
+
     def list_plans(self) -> dict:
         plans = self.repository.list_plans()
-        return {
-            "items": [
-                {
-                    "membership_plan_id": plan.id,
-                    "name": plan.name,
-                    "description": plan.description,
-                    "price": plan.price,
-                    "duration_days": plan.duration_days,
-                    "features": plan.features,
-                    "max_bookings_per_month": plan.max_bookings_per_month,
-                }
-                for plan in plans
-            ]
-        }
+        return {"items": [MembershipPlanResponse.from_model(plan) for plan in plans]}
 
-    def get_plan(self, plan_id: int) -> dict:
+    def get_plan(self, plan_id: int) -> MembershipPlanDetailResponse:
         plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
-        return {
-            "membership_plan_id": plan.id,
-            "name": plan.name,
-            "description": plan.description,
-            "price": plan.price,
-            "duration_days": plan.duration_days,
-            "features": plan.features,
-            "max_bookings_per_month": plan.max_bookings_per_month,
-            "allowed_class_categories": [
-                {"category_id": category.id, "name": category.name}
-                for category in plan.allowed_categories
-            ],
-        }
+        return MembershipPlanDetailResponse.from_model(plan)
 
-    def get_current_membership(self, user_id: int) -> dict:
+    def get_current_membership(self, user_id: int) -> CurrentMembershipResponse:
         membership = get_or_404(self.repository.get_user_membership(user_id), "Membership not found")
-        return serialize_membership(membership)
+        return CurrentMembershipResponse.from_model(membership)
 
-    def create_plan(self, payload) -> dict:
-        if self.repository.get_by_name(payload.name):
-            raise ConflictException("Membership plan name already exists")
+    def create_plan(self, payload: AdminMembershipPlanUpsertRequest) -> MembershipPlanResponse:
+        self._validate_unique_plan_name(payload.name)
 
-        plan = self.repository.create_plan(
-            MembershipPlan(
-                name=payload.name,
-                description=payload.description,
-                price=payload.price,
-                duration_days=payload.duration_days,
-                features=payload.features,
-                max_bookings_per_month=payload.max_bookings_per_month,
-            )
-        )
-        return {
-            "membership_plan_id": plan.id,
-            "name": plan.name,
-            "description": plan.description,
-            "price": plan.price,
-            "duration_days": plan.duration_days,
-            "features": plan.features,
-            "max_bookings_per_month": plan.max_bookings_per_month,
-        }
+        plan = self.repository.create_plan(MembershipPlan(**payload.model_dump()))
+        return MembershipPlanResponse.from_model(plan)
 
-    def update_plan(self, plan_id: int, payload) -> dict:
+    def update_plan(self, plan_id: int, payload: AdminMembershipPlanUpsertRequest) -> MembershipPlanResponse:
         plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
 
-        if payload.name != plan.name and self.repository.get_by_name(payload.name):
-            raise ConflictException("Membership plan name already exists")
+        self._validate_unique_plan_name(payload.name, current=plan)
 
-        updated = self.repository.update_plan(
-            plan,
-            {
-                "name": payload.name,
-                "description": payload.description,
-                "price": payload.price,
-                "duration_days": payload.duration_days,
-                "features": payload.features,
-                "max_bookings_per_month": payload.max_bookings_per_month,
-            },
-        )
-        return {
-            "membership_plan_id": updated.id,
-            "name": updated.name,
-            "description": updated.description,
-            "price": updated.price,
-            "duration_days": updated.duration_days,
-            "features": updated.features,
-            "max_bookings_per_month": updated.max_bookings_per_month,
-        }
+        updated = self.repository.update_plan(plan, payload.model_dump())
+        return MembershipPlanResponse.from_model(updated)
 
     def delete_plan(self, plan_id: int) -> dict:
         plan = get_or_404(self.repository.get_plan(plan_id), "Membership plan not found")
