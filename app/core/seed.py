@@ -323,6 +323,13 @@ def seed_reference_data(bind) -> None:
 
 	_seed_demo_users(bind, company_id_by_slug)
 
+	# Completed-booking history runs as its own pass after the demo-user loop so it
+	# does not depend on the order roles appear in DEMO_USERS: it needs both the
+	# member user and the staff trainer (seeded for the *trainer* demo user) to
+	# already exist, and the JSON lists the member before the trainer.
+	for company_id in company_id_by_slug.values():
+		_seed_completed_bookings(bind, company_id)
+
 
 def _seed_companies(bind) -> dict[str, int]:
 	# Provision one TargetCompany per DEMO_USERS group (slug = the JSON key).
@@ -543,3 +550,89 @@ def _seed_trainer_staff(bind, company_id: int, email: str) -> None:
 	"""
 	for statement in _STAFF_TRAINER_SQL:
 		bind.execute(sa.text(statement), {"cid": company_id, "email": email})
+
+
+# Per-company completed-booking history: 3 past PERSONAL sessions (6, 4 and 2 days
+# ago at 09:00) pairing the demo member with the staff trainer (code 2001), giving
+# the member a "last week" history the home/profile screens can surface. Each
+# statement is idempotent and scoped to :cid; the slot/booking guards key on the
+# 'TRN2001-DONE-<n>' assignment codes so re-runs append nothing.
+_COMPLETED_BOOKINGS_SQL: list[str] = [
+	# -------------------------------------------------------------------------
+	# PAST SLOTS for the staff trainer (YOGA / LOC001), one per session. Marked
+	# unavailable since each was consumed by the completed booking below.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO slots (
+	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  is_available, slot_assignment_code, schedule_type
+	)
+	SELECT :cid,
+	       date_trunc('day', NOW()::timestamptz) - (g.days_ago || ' days')::interval + INTERVAL '9 hours',
+	       t.location_id, t.id, d.id, FALSE, 'TRN2001-DONE-' || g.n, 'PERSONAL'
+	FROM (SELECT * FROM unnest(ARRAY[6, 4, 2]) WITH ORDINALITY AS u(days_ago, n)) g
+	CROSS JOIN trainers t
+	CROSS JOIN disciplines d
+	WHERE t.company_id = :cid AND t.trainer_code = 2001
+	  AND d.company_id = :cid AND d.discipline_code = 'YOGA'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM slots s
+	    WHERE s.company_id = :cid AND s.slot_assignment_code = 'TRN2001-DONE-' || g.n
+	  )
+	ON CONFLICT (trainer_id, slot_datetime) DO NOTHING
+	""",
+	# -------------------------------------------------------------------------
+	# COMPLETED BOOKINGS linking the demo member to each past slot. The member is
+	# resolved by role (exactly one per company) via a LATERAL pick so a stray
+	# extra member could never multiply the rows. Guarded per assignment code.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO bookings (
+	  company_id, user_id, slot_id, booking_status, booking_datetime, scheduled_at,
+	  updated_at, session_duration_minutes, has_pdf, is_overbooking,
+	  trainer_id, discipline_id, location_id, slot_assignment_code, notes
+	)
+	SELECT :cid, m.id, s.id, 'COMPLETED', s.slot_datetime, s.slot_datetime - INTERVAL '2 days',
+	       s.slot_datetime, 60, FALSE, FALSE,
+	       s.trainer_id, s.discipline_id, s.location_id, s.slot_assignment_code,
+	       'Completed personal training session.'
+	FROM slots s
+	JOIN LATERAL (
+	  SELECT u.id FROM users u
+	  JOIN roles r ON r.id = u.role_id AND r.name = 'member'
+	  WHERE u.company_id = :cid
+	  ORDER BY u.id
+	  LIMIT 1
+	) m ON TRUE
+	WHERE s.company_id = :cid AND s.slot_assignment_code LIKE 'TRN2001-DONE-%'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM bookings b
+	    WHERE b.company_id = :cid AND b.slot_assignment_code = s.slot_assignment_code
+	  )
+	""",
+	# -------------------------------------------------------------------------
+	# Reflect the consumed quota on the member's membership. GREATEST keeps this
+	# idempotent and never lowers a counter the app may already have advanced.
+	# -------------------------------------------------------------------------
+	"""
+	UPDATE member_memberships mm
+	SET bookings_used = GREATEST(mm.bookings_used, (
+	  SELECT count(*) FROM bookings b
+	  WHERE b.company_id = :cid AND b.user_id = mm.user_id
+	    AND b.slot_assignment_code LIKE 'TRN2001-DONE-%'
+	))
+	WHERE mm.company_id = :cid
+	""",
+]
+
+
+def _seed_completed_bookings(bind, company_id: int) -> None:
+	"""Seed the demo member's 3 completed sessions with the staff trainer.
+
+	Idempotent: slots and bookings guard on the 'TRN2001-DONE-<n>' assignment
+	codes and the quota bump uses GREATEST, so repeated runs are no-ops. A no-op
+	when the staff trainer or a member user is absent (the inserts simply match
+	no rows).
+	"""
+	for statement in _COMPLETED_BOOKINGS_SQL:
+		bind.execute(sa.text(statement), {"cid": company_id})
