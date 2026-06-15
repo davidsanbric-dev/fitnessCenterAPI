@@ -119,6 +119,21 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'CrossFit Starter'
 	  )
 	""",
+	# One-on-one PERSONAL class type used by the staff trainer's completed-session
+	# history (see _COMPLETED_BOOKINGS_SQL). Anchored at LOC001 under the Mind &
+	# Body / Yoga Flow subcategory to match the staff trainer's YOGA discipline.
+	"""
+	INSERT INTO class_types (company_id, name, subcategory_id, location_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'Assessment Session', sc.id, l.id, 'PERSONAL',
+	       'Wear comfortable clothing and bring water; includes body measurements and a mobility screen.',
+	       'ASSESS-001'
+	FROM class_subcategories sc
+	JOIN locations l ON l.company_id = :cid AND l.location_code = 'LOC001'
+	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Assessment Session'
+	  )
+	""",
 	# -------------------------------------------------------------------------
 	# TRAINERS (unique per company_id + trainer_code)
 	# -------------------------------------------------------------------------
@@ -552,11 +567,13 @@ def _seed_trainer_staff(bind, company_id: int, email: str) -> None:
 		bind.execute(sa.text(statement), {"cid": company_id, "email": email})
 
 
-# Per-company completed-booking history: 3 past PERSONAL sessions (6, 4 and 2 days
-# ago at 09:00) pairing the demo member with the staff trainer (code 2001), giving
-# the member a "last week" history the home/profile screens can surface. Each
-# statement is idempotent and scoped to :cid; the slot/booking guards key on the
-# 'TRN2001-DONE-<n>' assignment codes so re-runs append nothing.
+# Per-company completed-booking history: 3 past PERSONAL "Assessment Session"
+# bookings (6, 4 and 2 days ago at 09:00) pairing the demo member with the staff
+# trainer (code 2001), giving the member a "last week" history the home/profile
+# screens can surface. The slots and bookings carry the 'Assessment Session'
+# class type (seeded in _COMPANY_CATALOG_SQL) so the history reads consistently.
+# Each statement is idempotent and scoped to :cid; the slot/booking guards key on
+# the 'TRN2001-DONE-<n>' assignment codes so re-runs append nothing.
 _COMPLETED_BOOKINGS_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	# PAST SLOTS for the staff trainer (YOGA / LOC001), one per session. Marked
@@ -565,16 +582,18 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	"""
 	INSERT INTO slots (
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
-	  is_available, slot_assignment_code, schedule_type
+	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid,
 	       date_trunc('day', NOW()::timestamptz) - (g.days_ago || ' days')::interval + INTERVAL '9 hours',
-	       t.location_id, t.id, d.id, FALSE, 'TRN2001-DONE-' || g.n, 'PERSONAL'
+	       t.location_id, t.id, d.id, ct.id, FALSE, 'TRN2001-DONE-' || g.n, 'PERSONAL'
 	FROM (SELECT * FROM unnest(ARRAY[6, 4, 2]) WITH ORDINALITY AS u(days_ago, n)) g
 	CROSS JOIN trainers t
 	CROSS JOIN disciplines d
+	CROSS JOIN class_types ct
 	WHERE t.company_id = :cid AND t.trainer_code = 2001
 	  AND d.company_id = :cid AND d.discipline_code = 'YOGA'
+	  AND ct.company_id = :cid AND ct.name = 'Assessment Session'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s
 	    WHERE s.company_id = :cid AND s.slot_assignment_code = 'TRN2001-DONE-' || g.n
@@ -590,13 +609,18 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	INSERT INTO bookings (
 	  company_id, user_id, slot_id, booking_status, booking_datetime, scheduled_at,
 	  updated_at, session_duration_minutes, has_pdf, is_overbooking,
-	  trainer_id, discipline_id, location_id, slot_assignment_code, notes
+	  trainer_id, discipline_id, location_id, class_type_id, category_id,
+	  preparation_info, pdf_code, slot_assignment_code, notes
 	)
 	SELECT :cid, m.id, s.id, 'COMPLETED', s.slot_datetime, s.slot_datetime - INTERVAL '2 days',
-	       s.slot_datetime, 60, FALSE, FALSE,
-	       s.trainer_id, s.discipline_id, s.location_id, s.slot_assignment_code,
-	       'Completed personal training session.'
+	       s.slot_datetime, 60, (ct.pdf_code IS NOT NULL), FALSE,
+	       s.trainer_id, s.discipline_id, s.location_id, s.class_type_id, cc.id,
+	       ct.preparation_info, ct.pdf_code, s.slot_assignment_code,
+	       'Completed assessment session.'
 	FROM slots s
+	JOIN class_types ct ON ct.id = s.class_type_id
+	JOIN class_subcategories sub ON sub.id = ct.subcategory_id
+	JOIN class_categories cc ON cc.id = sub.category_id
 	JOIN LATERAL (
 	  SELECT u.id FROM users u
 	  JOIN roles r ON r.id = u.role_id AND r.name = 'member'
@@ -627,12 +651,12 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 
 
 def _seed_completed_bookings(bind, company_id: int) -> None:
-	"""Seed the demo member's 3 completed sessions with the staff trainer.
+	"""Seed the demo member's 3 completed Assessment Session bookings with the staff trainer.
 
 	Idempotent: slots and bookings guard on the 'TRN2001-DONE-<n>' assignment
 	codes and the quota bump uses GREATEST, so repeated runs are no-ops. A no-op
-	when the staff trainer or a member user is absent (the inserts simply match
-	no rows).
+	when the staff trainer, the 'Assessment Session' class type, or a member user
+	is absent (the inserts simply match no rows).
 	"""
 	for statement in _COMPLETED_BOOKINGS_SQL:
 		bind.execute(sa.text(statement), {"cid": company_id})
