@@ -47,7 +47,9 @@ def list_bookings(
     discipline_id: int | None = None,
     location_code: str | None = None,
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    # page_size == 0 returns the full set unpaginated (used by the member's
+    # training-history view, which paginates completed sessions client-side).
+    page_size: int = Query(default=20, ge=0, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

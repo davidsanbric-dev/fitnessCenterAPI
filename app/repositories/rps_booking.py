@@ -146,7 +146,11 @@ class BookingRepository:
             statement = statement.join(Booking.location).where(Location.location_code == location_code)
             count_statement = count_statement.join(Booking.location).where(Location.location_code == location_code)
         total = int(self.db.scalar(count_statement) or 0)
-        items = self.db.scalars(statement.order_by(Booking.booking_datetime.desc()).offset((page - 1) * page_size).limit(page_size)).all()
+        ordered = statement.order_by(Booking.booking_datetime.desc())
+        # page_size == 0 means "no pagination": return every matching row.
+        if page_size > 0:
+            ordered = ordered.offset((page - 1) * page_size).limit(page_size)
+        items = self.db.scalars(ordered).all()
         return list(items), total
 
     def _base_booking_statement(self, user_id: int):
