@@ -532,17 +532,22 @@ _STAFF_TRAINER_SQL: list[str] = [
 	""",
 	# -------------------------------------------------------------------------
 	# 6 AVAILABLE SLOTS, one per day starting two days after creation (09:00).
-	# Idempotent via the slot_assignment_code guard, so re-running on a later day
-	# does not append new slots at shifted times.
+	# Each carries the PERSONAL 'Assessment Session' class type (seeded in
+	# _COMPANY_CATALOG_SQL before this runs) so a member booking these slots
+	# inherits that class type via BookingService._build_booking. Idempotent via
+	# the slot_assignment_code guard, so re-running on a later day does not append
+	# new slots at shifted times.
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO slots (
 	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
-	  is_available, slot_assignment_code, schedule_type
+	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid,
 	       date_trunc('minute', (NOW() + INTERVAL '2 days' + (gs.n || ' days')::interval + INTERVAL '9 hours')::timestamptz),
-	       t.location_id, t.id, d.id, TRUE, 'TRN2001-' || gs.n, 'PERSONAL'
+	       t.location_id, t.id, d.id,
+	       (SELECT id FROM class_types WHERE company_id = :cid AND name = 'Assessment Session'),
+	       TRUE, 'TRN2001-' || gs.n, 'PERSONAL'
 	FROM generate_series(0, 5) AS gs(n)
 	CROSS JOIN trainers t
 	CROSS JOIN disciplines d
