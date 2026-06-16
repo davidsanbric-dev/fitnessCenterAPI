@@ -32,6 +32,8 @@ class TrainerSummary(APIModel):
     full_name: str
     discipline_id: int | None = None
     discipline_name: str | None = None
+    location_id: int | None = None
+    location_name: str | None = None
     bio: str | None = None
     photo_url: str | None = None
     certifications: list[str] = []
@@ -44,6 +46,8 @@ class TrainerSummary(APIModel):
             full_name=trainer.full_name,
             discipline_id=discipline.id if discipline else None,
             discipline_name=discipline.name if discipline else None,
+            location_id=trainer.location_id,
+            location_name=trainer.location.name if trainer.location else None,
             bio=trainer.bio,
             photo_url=trainer.photo_url,
             certifications=trainer.certifications or [],
