@@ -7,6 +7,7 @@ from app.models import (
     Discipline,
     Location,
     MembershipPlan,
+    Slot,
     Trainer,
 )
 
@@ -16,14 +17,29 @@ class DisciplineRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def list_disciplines(self, search: str | None = None, page: int = 1, page_size: int = 20) -> tuple[list[Discipline], int]:
-        statement = select(Discipline).options(selectinload(Discipline.trainers))
-        count_statement = select(func.count()).select_from(Discipline)
+    def list_disciplines(
+        self,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        location_code: str | None = None,
+    ) -> tuple[list[Discipline], int]:
+        statement = select(Discipline).options(
+            selectinload(Discipline.trainers),
+            # Slots carry the club a discipline is offered at; loaded so the
+            # unscoped listing can stamp each row with its own location.
+            selectinload(Discipline.slots).selectinload(Slot.location),
+        )
+        count_statement = select(func.count(func.distinct(Discipline.id))).select_from(Discipline)
         if search:
             pattern = f"%{search}%"
             condition = or_(Discipline.name.ilike(pattern), Discipline.description.ilike(pattern))
             statement = statement.where(condition)
             count_statement = count_statement.where(condition)
+        if location_code:
+            # A discipline is "offered" at a club when it has at least one slot there.
+            statement = statement.join(Discipline.slots).join(Slot.location).where(Location.location_code == location_code).distinct()
+            count_statement = count_statement.join(Discipline.slots).join(Slot.location).where(Location.location_code == location_code)
         total = int(self.db.scalar(count_statement) or 0)
         items = self.db.scalars(statement.order_by(Discipline.name).offset((page - 1) * page_size).limit(page_size)).all()
         return list(items), total

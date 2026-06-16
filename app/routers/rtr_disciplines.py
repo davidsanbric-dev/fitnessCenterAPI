@@ -18,11 +18,12 @@ router = APIRouter(prefix="/disciplines", tags=["disciplines"], dependencies=[De
 @router.get("", response_model=PaginatedResponse[DisciplineSummary])
 def list_disciplines(
     search: str | None = None,
+    location_code: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    return DisciplineService(db).list_disciplines(search, page, page_size)
+    return DisciplineService(db).list_disciplines(search, page, page_size, location_code)
 
 
 # Adapted discipline detail from clinic specialty + professionals projection.

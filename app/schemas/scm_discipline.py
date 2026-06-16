@@ -17,9 +17,18 @@ class DisciplineSummary(APIModel):
     description: str | None = None
     icon_url: str | None = None
     trainers_count: int = 0
+    # Populated when the listing is scoped to a club so the mobile directory can
+    # render the discipline name above its offering location.
+    location_id: int | None = None
+    location_name: str | None = None
 
     @classmethod
-    def from_model(cls, discipline: Discipline) -> DisciplineSummary:
+    def from_model(
+        cls,
+        discipline: Discipline,
+        location_id: int | None = None,
+        location_name: str | None = None,
+    ) -> DisciplineSummary:
         return cls(
             discipline_id=discipline.id,
             discipline_code=discipline.discipline_code,
@@ -27,6 +36,8 @@ class DisciplineSummary(APIModel):
             description=discipline.description,
             icon_url=discipline.icon_url,
             trainers_count=len(discipline.trainers),
+            location_id=location_id,
+            location_name=location_name,
         )
 
 
