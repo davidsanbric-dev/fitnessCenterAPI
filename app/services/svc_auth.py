@@ -9,7 +9,7 @@ from app.core.client_origin import ClientOrigin
 from app.core.config import ALLOWED_ROLES_BY_ORIGIN, settings
 from app.core.exceptions import UnauthorizedException
 from app.core.firebase_auth import set_firebase_custom_claims
-from app.domain import enforce_origin_login_allowed
+from app.domain import Rut, enforce_origin_login_allowed
 from app.core.tenancy import set_session_company
 from app.models import (
     MemberProfile,
@@ -49,7 +49,13 @@ class AuthService:
     @staticmethod
     def _build_member_profile(payload) -> MemberProfile:
         birth_date = date.fromisoformat(payload.birth_date) if payload.birth_date else None
+        # Registration does not collect a RUT, so derive a stable, well-formed one
+        # from the member's email (same scheme as the seed/backfill). Without this
+        # every self-registered member would have a null RUT, which surfaces as
+        # "Not available" in the booking-details dialog.
+        rut = str(Rut.deterministic_for(str(payload.email)))
         return MemberProfile(
+            rut=rut,
             first_name=payload.first_name,
             paternal_surname=payload.paternal_surname,
             maternal_surname=payload.maternal_surname,

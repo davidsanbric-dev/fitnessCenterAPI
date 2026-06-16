@@ -47,7 +47,7 @@ class BookingService:
         return Booking(
             user_id=user.id,
             slot_id=slot.id,
-            booking_status=BookingStatus.CONFIRMED,
+            booking_status=BookingStatus.PENDING,
             booking_datetime=booking_datetime,
             session_duration_minutes=session_duration_minutes,
             preparation_info=class_type.preparation_info if class_type else None,
@@ -118,7 +118,7 @@ class BookingService:
         if user.membership is not None:
             user.membership.bookings_used += 1
             self.db.commit()
-        self.notifications.notify(user.id, "Booking confirmed", "Your trainer session has been booked.", "booking_confirmed", {"booking_id": booking.id})
+        self.notifications.notify(user.id, "Booking requested", "Your trainer session is pending confirmation.", "booking_confirmed", {"booking_id": booking.id})
         self._notify_staff_of_booking_event(
             booking,
             "New booking",
@@ -153,7 +153,7 @@ class BookingService:
         if user.membership is not None:
             user.membership.bookings_used += 1
             self.db.commit()
-        self.notifications.notify(user.id, "Class booked", "Your class slot has been booked.", "booking_confirmed", {"booking_id": booking.id})
+        self.notifications.notify(user.id, "Class requested", "Your class slot is pending confirmation.", "booking_confirmed", {"booking_id": booking.id})
         self._notify_staff_of_booking_event(
             booking,
             "New booking",

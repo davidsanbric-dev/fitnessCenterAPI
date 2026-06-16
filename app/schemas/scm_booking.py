@@ -75,9 +75,13 @@ class BookingLocationInfo(APIModel):
 
 class BookingMemberInfo(APIModel):
     # The member who owns the booking, surfaced for staff/trainer agenda views
-    # (the member's own views simply show themselves here).
+    # (the member's own views simply show themselves here). RUT/phone come from
+    # the member profile so the mobile booking-details dialog can render them
+    # without leaning on the auth claims that only the profile page has.
     user_id: int
     full_name: str
+    rut: str | None = None
+    mobile_phone: str | None = None
     email: str | None = None
 
     @classmethod
@@ -88,7 +92,13 @@ class BookingMemberInfo(APIModel):
             if profile is not None
             else ""
         ) or user.email
-        return cls(user_id=user.id, full_name=full_name, email=user.email)
+        return cls(
+            user_id=user.id,
+            full_name=full_name,
+            rut=profile.rut if profile is not None else None,
+            mobile_phone=(profile.mobile_phone or profile.landline_phone) if profile is not None else None,
+            email=user.email,
+        )
 
 
 class BookingByTrainerCreate(APIModel):
