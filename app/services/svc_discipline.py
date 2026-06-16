@@ -67,6 +67,13 @@ class DisciplineService:
             if location is not None:
                 clubs.setdefault(location.id, location.name)
         if not clubs:
+            # No scheduled sessions yet: fall back to the clubs its trainers
+            # work at so the directory still shows where it's offered.
+            for trainer in discipline.trainers:
+                location = trainer.location
+                if location is not None:
+                    clubs.setdefault(location.id, location.name)
+        if not clubs:
             return None, None
         if len(clubs) == 1:
             (club_id, club_name), = clubs.items()

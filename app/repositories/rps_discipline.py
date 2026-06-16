@@ -25,7 +25,9 @@ class DisciplineRepository:
         location_code: str | None = None,
     ) -> tuple[list[Discipline], int]:
         statement = select(Discipline).options(
-            selectinload(Discipline.trainers),
+            # Trainers (and their club) back the location fallback for a
+            # discipline that has no slots yet.
+            selectinload(Discipline.trainers).selectinload(Trainer.location),
             # Slots carry the club a discipline is offered at; loaded so the
             # unscoped listing can stamp each row with its own location.
             selectinload(Discipline.slots).selectinload(Slot.location),
