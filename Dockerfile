@@ -6,6 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# ``webp`` provides the cwebp encoder used to transcode uploaded hero images to
+# WebP on save (see app/core/media.py).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends webp \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./

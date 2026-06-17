@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import binascii
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 from uuid import uuid4
 
@@ -34,11 +36,19 @@ def save_image(db: Session, raw: str) -> str:
         raise UnprocessableEntityException("Invalid image encoding")
 
     company_id = get_session_company(db) or 0
-    filename = f"{company_id}_{uuid4().hex}{extension}"
     directory = Path(settings.blog_images_path)
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / filename).write_bytes(data)
-    return filename
+    stored = directory / f"{company_id}_{uuid4().hex}{extension}"
+    stored.write_bytes(data)
+
+    # Optimise server disk usage by transcoding raster uploads to WebP at q80
+    # (``cwebp -q 80 in.png -o out.webp``). WebP inputs are already optimal, and
+    # a missing encoder or a conversion failure falls back to the stored bytes.
+    if extension != ".webp":
+        converted = _convert_to_webp(stored)
+        if converted is not None:
+            stored = converted
+    return stored.name
 
 
 def serve_image(filename: str) -> FileResponse:
@@ -58,6 +68,33 @@ def delete_image(filename: str) -> None:
             target.unlink()
     except OSError:
         logger.warning("Could not delete image %s", filename, exc_info=True)
+
+
+def _convert_to_webp(source: Path) -> Path | None:
+    # Run cwebp to produce a sibling ``.webp`` and drop the original on success.
+    # Returns None (keeping the original) when the tool is absent or fails, so an
+    # upload is never lost to a transcoding problem.
+    cwebp = shutil.which("cwebp")
+    if cwebp is None:
+        logger.warning("cwebp not found; storing %s without WebP conversion", source.name)
+        return None
+    target = source.with_suffix(".webp")
+    try:
+        subprocess.run(
+            [cwebp, "-q", "80", str(source), "-o", str(target)],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError):
+        logger.warning("WebP conversion failed for %s; keeping original", source.name, exc_info=True)
+        try:
+            target.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+    source.unlink(missing_ok=True)
+    return target
 
 
 def _parse_data_url(raw: str) -> tuple[str, str]:

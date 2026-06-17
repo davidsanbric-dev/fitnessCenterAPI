@@ -45,3 +45,17 @@ class BlogRepository:
     def delete_blog(self, blog: Blog) -> None:
         self.db.delete(blog)
         self.db.commit()
+
+    def count_blogs_sharing_image(self, image_path: str, exclude_blog_id: int) -> int:
+        # Cross-company count of *other* blogs pointing at the same stored image.
+        # Selecting from the Core table (not the mapped class) sidesteps the
+        # tenant loader criteria, so seeded hero images shared across companies
+        # are correctly seen as still-referenced. Used to decide whether deleting
+        # a blog may also reclaim its image file.
+        table = Blog.__table__
+        statement = (
+            select(func.count())
+            .select_from(table)
+            .where(table.c.hero_image_path == image_path, table.c.id != exclude_blog_id)
+        )
+        return int(self.db.scalar(statement) or 0)

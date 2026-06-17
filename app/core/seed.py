@@ -621,7 +621,18 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	       s.slot_datetime, 60, (ct.pdf_code IS NOT NULL), FALSE,
 	       s.trainer_id, s.discipline_id, s.location_id, s.class_type_id, cc.id,
 	       ct.preparation_info, ct.pdf_code, s.slot_assignment_code,
-	       'Completed assessment session.'
+	       -- Cohesive trainer notes across the 3 completed sessions (codes
+	       -- TRN2001-DONE-1..3, oldest to newest) so the history reads as real
+	       -- progression rather than three identical generic lines.
+	       CASE s.slot_assignment_code
+	         WHEN 'TRN2001-DONE-1' THEN
+	           'Initial assessment. Established baseline with a full mobility and posture screen: limited hip and shoulder range, core engagement inconsistent under load. Set starting loads, cued diaphragmatic breathing and bracing. Focus for next session: hip mobility and squat depth.'
+	         WHEN 'TRN2001-DONE-2' THEN
+	           'Second session. Hip and shoulder mobility clearly improved; squat depth now reaching parallel with a neutral spine. Progressed core stability drills and added moderate resistance to the foundational lifts. Form held under the heavier load. Next: build work capacity and posterior-chain strength.'
+	         WHEN 'TRN2001-DONE-3' THEN
+	           'Third session. Strength and range-of-motion gains consolidated, endurance noticeably up from baseline and posture staying corrected even under fatigue. Movement quality is consistent across all foundational lifts. Cleared to advance to a structured personal-training block.'
+	         ELSE 'Completed assessment session.'
+	       END
 	FROM slots s
 	JOIN class_types ct ON ct.id = s.class_type_id
 	JOIN class_subcategories sub ON sub.id = ct.subcategory_id

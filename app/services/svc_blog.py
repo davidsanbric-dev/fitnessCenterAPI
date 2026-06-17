@@ -56,8 +56,12 @@ class BlogService:
     def delete_blog(self, blog_id: int) -> dict:
         blog = self.guards.require_existing(blog_id)
         image_path = blog.hero_image_path
+        # Seeded demo blogs reuse the same hero image across several companies, so
+        # only reclaim the file when no other blog still references it; otherwise
+        # deleting one entry would break the others' images.
+        shared = bool(image_path) and self.repository.count_blogs_sharing_image(image_path, blog_id) > 0
         self.repository.delete_blog(blog)
-        if image_path:
+        if image_path and not shared:
             delete_image(image_path)
         return {"message": "Blog entry deleted"}
 
