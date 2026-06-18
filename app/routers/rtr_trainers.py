@@ -33,7 +33,6 @@ router = APIRouter(prefix="/trainers", tags=["trainers"], dependencies=[Depends(
 def list_trainers(
     discipline_id: int | None = None,
     membership_plan_id: int | None = None,
-    location_code: str | None = None,
     search: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -42,7 +41,6 @@ def list_trainers(
     return TrainerService(db).list_trainers(
         discipline_id=discipline_id,
         membership_plan_id=membership_plan_id,
-        location_code=location_code,
         search=search,
         page=page,
         page_size=page_size,
@@ -123,7 +121,6 @@ def list_my_bookings(
         date_to=date_to,
         trainer_id=trainer.id,
         discipline_id=None,
-        location_code=None,
         page=page,
         page_size=page_size,
     )
@@ -144,7 +141,6 @@ def update_my_booking_status(
         trainer_id=trainer.id,
         booking_id=booking_id,
         booking_status=payload.booking_status,
-        location_code=payload.location_code,
         notes=payload.notes,
     )
 

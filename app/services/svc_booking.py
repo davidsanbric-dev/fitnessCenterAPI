@@ -58,7 +58,6 @@ class BookingService:
             discipline_id=slot.discipline_id,
             class_type_id=slot.class_type_id,
             category_id=class_type.subcategory.category_id if class_type else None,
-            location_id=slot.location_id,
             slot_assignment_code=slot_assignment_code,
         )
 
@@ -101,7 +100,6 @@ class BookingService:
         slot = self.guards.require_available_slot(
             self.repository.get_slot_for_trainer_booking(
                 booking_datetime,
-                payload.location_code,
                 payload.trainer_code,
                 payload.discipline_code,
             )
@@ -135,7 +133,6 @@ class BookingService:
         slot = self.guards.require_available_slot(
             self.repository.get_slot_for_class_type_booking(
                 booking_datetime,
-                payload.location_code,
                 payload.trainer_code,
                 payload.class_type_id,
                 payload.slot_assignment_code,
@@ -175,13 +172,13 @@ class BookingService:
             page_size=filters["page_size"],
         )
 
-    def get_booking(self, user_id: int, booking_id: int, location_code: str) -> BookingResponse:
-        booking = self.guards.require_existing_for_location(booking_id, location_code, user_id=user_id)
+    def get_booking(self, user_id: int, booking_id: int) -> BookingResponse:
+        booking = self.guards.require_existing(booking_id, user_id=user_id)
         return BookingResponse.from_model(booking)
 
-    def update_status(self, user_id: int, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> BookingStatusResponse:
+    def update_status(self, user_id: int, booking_id: int, booking_status: str, notes: str | None) -> BookingStatusResponse:
         require_notes_for_completion(booking_status, notes)
-        booking = self.guards.require_existing_for_location(booking_id, location_code, user_id=user_id)
+        booking = self.guards.require_existing(booking_id, user_id=user_id)
         enforce_cancellation_window(booking_status, booking.booking_datetime)
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(user_id, "Booking updated", f"Your booking is now {booking_status.lower()}.", "schedule_change", {"booking_id": booking.id})
@@ -211,9 +208,9 @@ class BookingService:
             page_size=filters["page_size"],
         )
 
-    def admin_update_status(self, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> BookingStatusResponse:
+    def admin_update_status(self, booking_id: int, booking_status: str, notes: str | None) -> BookingStatusResponse:
         require_notes_for_completion(booking_status, notes)
-        booking = self.guards.require_existing_for_location(booking_id, location_code)
+        booking = self.guards.require_existing(booking_id)
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(
             booking.user_id,
@@ -224,9 +221,9 @@ class BookingService:
         )
         return BookingStatusResponse.from_model(booking)
 
-    def trainer_update_status(self, trainer_id: int, booking_id: int, booking_status: str, location_code: str, notes: str | None) -> BookingStatusResponse:
+    def trainer_update_status(self, trainer_id: int, booking_id: int, booking_status: str, notes: str | None) -> BookingStatusResponse:
         require_notes_for_completion(booking_status, notes)
-        booking = self.guards.require_existing_for_location(booking_id, location_code, trainer_id=trainer_id)
+        booking = self.guards.require_existing(booking_id, trainer_id=trainer_id)
         booking = self.repository.update_status(booking, booking_status, notes)
         self.notifications.notify(
             booking.user_id,

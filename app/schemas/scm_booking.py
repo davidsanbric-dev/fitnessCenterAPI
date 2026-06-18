@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from app.schemas import APIModel
 
 if TYPE_CHECKING:
-    from app.models import Booking, ClassCategory, ClassType, Location, User
+    from app.models import Booking, ClassCategory, ClassType, User
 
 
 # Adapted trainer node from clinic Professional nested in appointment DTOs.
@@ -62,17 +62,6 @@ class BookingCategoryInfo(APIModel):
         return cls(category_id=category.id, name=category.name)
 
 
-class BookingLocationInfo(APIModel):
-    # Adapted branch node from clinic Branch nested in appointment DTOs.
-    location_id: int
-    name: str
-    location_code: str | None = None
-
-    @classmethod
-    def from_model(cls, location: Location) -> BookingLocationInfo:
-        return cls(location_id=location.id, name=location.name, location_code=location.location_code)
-
-
 class BookingMemberInfo(APIModel):
     # The member who owns the booking, surfaced for staff/trainer agenda views
     # (the member's own views simply show themselves here). RUT/phone come from
@@ -105,7 +94,6 @@ class BookingByTrainerCreate(APIModel):
     # Adapted from clinic ScheduleAppointmentCommand -> gym by-trainer booking payload.
     booking_date: str
     booking_time: str
-    location_code: str
     session_duration_minutes: int
     discipline_code: str
     trainer_code: int
@@ -116,7 +104,6 @@ class BookingByClassTypeCreate(APIModel):
     # Adapted from clinic ScheduleServiceAppointmentCommand -> gym by-class-type payload.
     booking_date: str
     booking_time: str
-    location_code: str
     trainer_code: int
     slot_assignment_code: str
     class_type_id: int
@@ -126,7 +113,6 @@ class BookingByClassTypeCreate(APIModel):
 class BookingStatusUpdate(APIModel):
     # Adapted from clinic UpdateAppointmentStatusCommand.
     booking_status: str
-    location_code: str
     notes: str | None = None
 
 
@@ -157,7 +143,6 @@ class BookingResponse(APIModel):
     trainer: BookingTrainerInfo | None = None
     class_type: BookingClassTypeInfo | None = None
     category: BookingCategoryInfo | None = None
-    location: BookingLocationInfo | None = None
 
     @classmethod
     def from_model(cls, booking: Booking) -> BookingResponse:
@@ -176,7 +161,6 @@ class BookingResponse(APIModel):
             trainer=BookingTrainerInfo.from_booking(booking) if booking.trainer else None,
             class_type=BookingClassTypeInfo.from_model(booking.class_type) if booking.class_type else None,
             category=BookingCategoryInfo.from_model(booking.category) if booking.category else None,
-            location=BookingLocationInfo.from_model(booking.location) if booking.location else None,
         )
 
 

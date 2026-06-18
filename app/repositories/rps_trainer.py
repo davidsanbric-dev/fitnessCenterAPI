@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     Discipline,
-    Location,
     MembershipPlan,
     Slot,
     Trainer,
@@ -21,13 +20,12 @@ class TrainerRepository:
         self,
         discipline_id: int | None = None,
         membership_plan_id: int | None = None,
-        location_code: str | None = None,
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Trainer], int]:
-        # Adapted professional listing filters: specialty/prevision/branch -> discipline/membership/location.
-        statement = select(Trainer).options(selectinload(Trainer.disciplines), selectinload(Trainer.location)).where(Trainer.is_active.is_(True))
+        # Adapted professional listing filters: specialty/prevision -> discipline/membership.
+        statement = select(Trainer).options(selectinload(Trainer.disciplines)).where(Trainer.is_active.is_(True))
         count_statement = select(func.count()).select_from(Trainer).where(Trainer.is_active.is_(True))
 
         if discipline_id is not None:
@@ -36,9 +34,6 @@ class TrainerRepository:
         if membership_plan_id is not None:
             statement = statement.join(Trainer.membership_plans).where(MembershipPlan.id == membership_plan_id)
             count_statement = count_statement.join(Trainer.membership_plans).where(MembershipPlan.id == membership_plan_id)
-        if location_code is not None:
-            statement = statement.join(Trainer.location).where(Location.location_code == location_code)
-            count_statement = count_statement.join(Trainer.location).where(Location.location_code == location_code)
         if search:
             pattern = f"%{search}%"
             statement = statement.where(or_(Trainer.full_name.ilike(pattern), Trainer.bio.ilike(pattern)))
@@ -55,7 +50,7 @@ class TrainerRepository:
         # Resolve the staff trainer linked to a signed-in user (see Trainer.user_id).
         statement = (
             select(Trainer)
-            .options(selectinload(Trainer.disciplines), selectinload(Trainer.location))
+            .options(selectinload(Trainer.disciplines))
             .where(Trainer.user_id == user_id)
         )
         return self.db.scalar(statement)

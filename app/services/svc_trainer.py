@@ -13,7 +13,6 @@ from app.core.media import delete_profile_image, save_profile_image
 from app.core.tenancy import get_session_company
 from app.models import Slot, Trainer, User
 from app.repositories.rps_discipline import DisciplineRepository
-from app.repositories.rps_location import LocationRepository
 from app.repositories.rps_role import RoleRepository
 from app.repositories.rps_trainer import TrainerRepository
 from app.schemas import PaginatedResponse
@@ -36,7 +35,6 @@ class TrainerService:
         self.db = db
         self.repository = TrainerRepository(db)
         self.disciplines = DisciplineRepository(db)
-        self.locations = LocationRepository(db)
         self.roles = RoleRepository(db)
         self.slot_service = SlotService(db)
         self.notifications = NotificationService(db)
@@ -75,8 +73,6 @@ class TrainerService:
         max_code = self.repository.get_max_trainer_code(company_id)
         trainer_code = max(int(max_code or 0), self._ADMIN_TRAINER_CODE_BASE) + 1
 
-        location = self.locations.get_default_location()
-
         discipline = None
         discipline_id = payload.get("discipline_id")
         if discipline_id:
@@ -91,7 +87,6 @@ class TrainerService:
             photo_url=payload.get("photo_url") or "/images/trainers/staff.jpg",
             certifications=payload.get("certifications") or [],
             is_active=True,
-            location_id=location.id if location else None,
             user_id=user.id,
         )
         if discipline is not None:

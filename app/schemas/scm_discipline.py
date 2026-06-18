@@ -17,18 +17,9 @@ class DisciplineSummary(APIModel):
     description: str | None = None
     icon_url: str | None = None
     trainers_count: int = 0
-    # Populated when the listing is scoped to a club so the mobile directory can
-    # render the discipline name above its offering location.
-    location_id: int | None = None
-    location_name: str | None = None
 
     @classmethod
-    def from_model(
-        cls,
-        discipline: Discipline,
-        location_id: int | None = None,
-        location_name: str | None = None,
-    ) -> DisciplineSummary:
+    def from_model(cls, discipline: Discipline) -> DisciplineSummary:
         return cls(
             discipline_id=discipline.id,
             discipline_code=discipline.discipline_code,
@@ -36,8 +27,6 @@ class DisciplineSummary(APIModel):
             description=discipline.description,
             icon_url=discipline.icon_url,
             trainers_count=len(discipline.trainers),
-            location_id=location_id,
-            location_name=location_name,
         )
 
 
@@ -79,14 +68,12 @@ class DisciplineAvailabilityTrainer(APIModel):
 class DisciplineAvailabilityItem(APIModel):
     # Adapted slot shape from clinic GetAvailableAppointments.
     slot_datetime: datetime
-    location_id: int | None = None
     trainer: DisciplineAvailabilityTrainer
 
     @classmethod
     def from_slot(cls, slot: Slot) -> DisciplineAvailabilityItem:
         return cls(
             slot_datetime=slot.slot_datetime,
-            location_id=slot.location_id,
             trainer=DisciplineAvailabilityTrainer.from_slot(slot),
         )
 

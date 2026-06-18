@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import (
     ClassType,
     Discipline,
-    Location,
     Slot,
     Trainer,
 )
@@ -23,7 +22,6 @@ class SlotRepository:
         self,
         date_from: datetime,
         date_to: datetime,
-        location_code: str | None = None,
         trainer_id: int | None = None,
         discipline_id: int | None = None,
         discipline_code: str | None = None,
@@ -36,7 +34,7 @@ class SlotRepository:
         # Adapted dual-path slot search: discipline path (A) and class-type path (B).
         statement = (
             select(Slot)
-            .options(selectinload(Slot.trainer).selectinload(Trainer.disciplines), selectinload(Slot.location))
+            .options(selectinload(Slot.trainer).selectinload(Trainer.disciplines))
             .where(
                 Slot.slot_datetime >= date_from,
                 Slot.slot_datetime <= date_to,
@@ -48,9 +46,6 @@ class SlotRepository:
             Slot.slot_datetime <= date_to,
             Slot.is_available.is_(True),
         )
-        if location_code is not None:
-            statement = statement.join(Slot.location).where(Location.location_code == location_code)
-            count_statement = count_statement.join(Slot.location).where(Location.location_code == location_code)
         if trainer_id is not None:
             statement = statement.where(Slot.trainer_id == trainer_id)
             count_statement = count_statement.where(Slot.trainer_id == trainer_id)
@@ -75,7 +70,6 @@ class SlotRepository:
         date_from: datetime,
         date_to: datetime,
         trainer_id: int | None = None,
-        location_code: str | None = None,
     ) -> list[Slot]:
         # Adapted from clinic specialty slot search window.
         statement = (
@@ -90,8 +84,6 @@ class SlotRepository:
         )
         if trainer_id is not None:
             statement = statement.where(Slot.trainer_id == trainer_id)
-        if location_code is not None:
-            statement = statement.join(Slot.location).where(Location.location_code == location_code)
         return list(self.db.scalars(statement.order_by(Slot.slot_datetime)).all())
 
     def get_availability_by_trainer(

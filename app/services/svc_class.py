@@ -22,16 +22,16 @@ class ClassService:
     def _require_class_type(self, class_type_id: int):
         return get_or_404(self.repository.get_class_type(class_type_id), "Class type not found")
 
-    def list_categories(self, location_code: str | None) -> dict:
-        categories = self.repository.list_categories(location_code)
+    def list_categories(self) -> dict:
+        categories = self.repository.list_categories()
         return {"items": [ClassCategorySummary.from_model(category) for category in categories]}
 
-    def list_subcategories(self, category_id: int, location_code: str | None) -> dict:
-        items = self.repository.list_subcategories(category_id, location_code)
+    def list_subcategories(self, category_id: int) -> dict:
+        items = self.repository.list_subcategories(category_id)
         return {"items": [ClassSubcategorySummary.from_model(item) for item in items]}
 
-    def list_class_types(self, subcategory_id: int, location_code: str | None) -> dict:
-        items = self.repository.list_class_types(subcategory_id, location_code)
+    def list_class_types(self, subcategory_id: int) -> dict:
+        items = self.repository.list_class_types(subcategory_id)
         return {"items": [ClassTypeSummary.from_model(item) for item in items]}
 
     def get_class_type(self, class_type_id: int) -> ClassTypeDetailResponse:
@@ -43,12 +43,11 @@ class ClassService:
     def get_availability(
         self,
         class_type_id: int,
-        location_code: str,
         date_from: datetime | None,
         date_to: datetime | None,
         trainer_id: int | None,
         query_type: str | None,
     ) -> ClassTypeAvailabilityResponse:
         self._require_class_type(class_type_id)
-        slots = self.repository.get_class_type_availability(class_type_id, location_code, date_from, date_to, trainer_id, query_type)
+        slots = self.repository.get_class_type_availability(class_type_id, date_from, date_to, trainer_id, query_type)
         return ClassTypeAvailabilityResponse.from_slots(class_type_id, slots)

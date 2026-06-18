@@ -17,7 +17,6 @@ def _class_type_fields(class_type: ClassType) -> dict:
         "schedule_type": class_type.schedule_type,
         "preparation_info": class_type.preparation_info,
         "pdf_code": class_type.pdf_code,
-        "location_id": class_type.location_id,
     }
 
 
@@ -28,7 +27,6 @@ class ClassTypeSummary(APIModel):
     schedule_type: str | None = None
     preparation_info: str | None = None
     pdf_code: str | None = None
-    location_id: int | None = None
 
     @classmethod
     def from_model(cls, class_type: ClassType) -> ClassTypeSummary:

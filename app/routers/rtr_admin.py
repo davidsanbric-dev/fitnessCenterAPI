@@ -35,7 +35,6 @@ def list_admin_bookings(
     date_to: datetime | None = None,
     trainer_id: int | None = None,
     discipline_id: int | None = None,
-    location_code: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -48,7 +47,6 @@ def list_admin_bookings(
         date_to=date_to,
         trainer_id=trainer_id,
         discipline_id=discipline_id,
-        location_code=location_code,
         page=page,
         page_size=page_size,
     )
@@ -65,7 +63,6 @@ def update_admin_booking_status(
     return BookingService(db).admin_update_status(
         booking_id=booking_id,
         booking_status=payload.booking_status,
-        location_code=payload.location_code,
         notes=payload.notes,
     )
 

@@ -33,8 +33,6 @@ class TrainerSummary(APIModel):
     full_name: str
     discipline_id: int | None = None
     discipline_name: str | None = None
-    location_id: int | None = None
-    location_name: str | None = None
     bio: str | None = None
     photo_url: str | None = None
     certifications: list[str] = []
@@ -47,8 +45,6 @@ class TrainerSummary(APIModel):
             full_name=trainer.full_name,
             discipline_id=discipline.id if discipline else None,
             discipline_name=discipline.name if discipline else None,
-            location_id=trainer.location_id,
-            location_name=trainer.location.name if trainer.location else None,
             bio=trainer.bio,
             photo_url=profile_image_url(trainer.photo_url),
             certifications=trainer.certifications or [],
@@ -58,7 +54,6 @@ class TrainerSummary(APIModel):
 class TrainerAvailabilityItem(APIModel):
     # Adapted from clinic available appointment slot data for a professional.
     slot_datetime: datetime
-    location_id: int | None = None
     is_available: bool
     discipline_name: str | None = None
 
@@ -66,7 +61,6 @@ class TrainerAvailabilityItem(APIModel):
     def from_slot(cls, slot: Slot) -> TrainerAvailabilityItem:
         return cls(
             slot_datetime=slot.slot_datetime,
-            location_id=slot.location_id,
             is_available=slot.is_available,
             discipline_name=slot.discipline.name if slot.discipline else None,
         )
@@ -127,7 +121,6 @@ class TrainerMeProfileResponse(APIModel):
     bio: str | None = None
     photo_url: str | None = None
     certifications: list[str] = []
-    location_id: int | None = None
     disciplines: list[TrainerDisciplineInfo] = []
 
     @classmethod
@@ -141,7 +134,6 @@ class TrainerMeProfileResponse(APIModel):
             bio=trainer.bio,
             photo_url=profile_image_url(trainer.photo_url),
             certifications=trainer.certifications or [],
-            location_id=trainer.location_id,
             disciplines=[TrainerDisciplineInfo.from_model(discipline) for discipline in trainer.disciplines],
         )
 
@@ -184,7 +176,6 @@ class TrainerMeProfileUpdate(APIModel):
 class TrainerSlotResponse(APIModel):
     slot_id: int
     slot_datetime: datetime
-    location_id: int | None = None
     discipline_id: int | None = None
     discipline_name: str | None = None
     is_available: bool
@@ -196,7 +187,6 @@ class TrainerSlotResponse(APIModel):
         return cls(
             slot_id=slot.id,
             slot_datetime=slot.slot_datetime,
-            location_id=slot.location_id,
             discipline_id=slot.discipline_id,
             discipline_name=slot.discipline.name if slot.discipline else None,
             is_available=slot.is_available,

@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 class ClassCategorySummary(APIModel):
     category_id: int
     name: str
-    location_id: int | None = None
     icon_url: str | None = None
     subcategories_count: int = 0
 
@@ -21,7 +20,6 @@ class ClassCategorySummary(APIModel):
         return cls(
             category_id=category.id,
             name=category.name,
-            location_id=category.location_id,
             icon_url=category.icon_url,
             subcategories_count=len(category.subcategories),
         )

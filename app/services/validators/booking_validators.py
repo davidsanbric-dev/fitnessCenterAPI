@@ -50,16 +50,6 @@ class BookingGuards:
             raise NotFoundException("Booking not found")
         return booking
 
-    def require_existing_for_location(
-        self, booking_id: int, location_code: str, *, user_id: int | None = None, trainer_id: int | None = None
-    ) -> Booking:
-        # As above, additionally scoping the booking to the active location so a
-        # booking from another branch is treated as not found here.
-        booking = self.require_existing(booking_id, user_id=user_id, trainer_id=trainer_id)
-        if booking.location and booking.location.location_code != location_code:
-            raise NotFoundException("Booking not found for location")
-        return booking
-
     def require_no_existing_booking_at(self, user_id: int, booking_datetime: datetime) -> None:
         # A member may hold at most one booking per time slot, regardless of which
         # path (trainer or class) created it.

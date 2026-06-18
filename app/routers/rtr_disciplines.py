@@ -18,12 +18,11 @@ router = APIRouter(prefix="/disciplines", tags=["disciplines"], dependencies=[De
 @router.get("", response_model=PaginatedResponse[DisciplineSummary])
 def list_disciplines(
     search: str | None = None,
-    location_code: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    return DisciplineService(db).list_disciplines(search, page, page_size, location_code)
+    return DisciplineService(db).list_disciplines(search, page, page_size)
 
 
 # Adapted discipline detail from clinic specialty + professionals projection.
@@ -37,10 +36,9 @@ def get_discipline(discipline_id: int, db: Session = Depends(get_db)):
 def get_discipline_trainers(
     discipline_id: int,
     membership_plan_id: int | None = None,
-    location_code: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return DisciplineService(db).get_trainers(discipline_id, membership_plan_id, location_code)
+    return DisciplineService(db).get_trainers(discipline_id, membership_plan_id)
 
 
 # Adapted from clinic GetAvailableAppointments filtered by specialty/discipline.
@@ -51,7 +49,6 @@ def get_discipline_availability(
     date_to: datetime,
     session_duration_minutes: int | None = None,
     trainer_id: int | None = None,
-    location_code: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return DisciplineService(db).get_availability(discipline_id, date_from, date_to, trainer_id, location_code)
+    return DisciplineService(db).get_availability(discipline_id, date_from, date_to, trainer_id)

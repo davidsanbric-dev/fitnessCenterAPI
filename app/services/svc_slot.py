@@ -50,7 +50,6 @@ class SlotService:
     def create_slot(self, trainer: Trainer, payload: dict) -> Slot:
         slot = Slot(
             slot_datetime=payload["slot_datetime"],
-            location_id=trainer.location_id,
             trainer_id=trainer.id,
             discipline_id=payload.get("discipline_id"),
             is_available=True,

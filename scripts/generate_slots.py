@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from app.core.db import SessionLocal
 from app.core.tenancy import set_session_company
-from app.models import ClassType, Location, Slot, TargetCompany, Trainer
+from app.models import ClassType, Slot, TargetCompany, Trainer
 
 _DEFAULT_SLOTS = 50
 # ASG-100 and ASG-200 are reserved by seed.py; start well clear of them.
@@ -24,10 +24,9 @@ _CODE_START = 300
 def _generate_for_company(db, num_slots: int) -> int:
     """Generate slots for the company currently bound to *db*. Returns count created."""
     trainers = db.scalars(select(Trainer).where(Trainer.is_active.is_(True))).all()
-    locations = db.scalars(select(Location)).all()
     class_types = db.scalars(select(ClassType)).all()
 
-    if not trainers or not locations:
+    if not trainers:
         return 0
 
     # Existing codes for this company (session is already scoped).
@@ -68,7 +67,6 @@ def _generate_for_company(db, num_slots: int) -> int:
         ):
             continue
 
-        location = trainer.location or random.choice(locations)
         discipline = random.choice(trainer.disciplines) if trainer.disciplines else None
         class_type = random.choice(class_types) if class_types else None
 
@@ -82,7 +80,6 @@ def _generate_for_company(db, num_slots: int) -> int:
         db.add(
             Slot(
                 slot_datetime=slot_dt,
-                location_id=location.id,
                 trainer_id=trainer.id,
                 discipline_id=discipline.id if discipline else None,
                 class_type_id=class_type.id if class_type else None,

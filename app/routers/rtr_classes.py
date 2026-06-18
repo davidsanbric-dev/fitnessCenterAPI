@@ -15,20 +15,20 @@ router = APIRouter(tags=["classes"], dependencies=[Depends(get_current_user)])
 
 # Adapted from clinic GetCapabilities with TipoConsulta="1".
 @router.get("/class-categories")
-def list_categories(location_code: str | None = None, db: Session = Depends(get_db)):
-    return ClassService(db).list_categories(location_code)
+def list_categories(db: Session = Depends(get_db)):
+    return ClassService(db).list_categories()
 
 
 # Adapted from clinic GetCapabilities with TipoConsulta="2".
 @router.get("/class-categories/{category_id}/subcategories")
-def list_subcategories(category_id: int, location_code: str | None = None, db: Session = Depends(get_db)):
-    return ClassService(db).list_subcategories(category_id, location_code)
+def list_subcategories(category_id: int, db: Session = Depends(get_db)):
+    return ClassService(db).list_subcategories(category_id)
 
 
 # Adapted from clinic GetCapabilities with TipoConsulta="3".
 @router.get("/class-categories/{category_id}/subcategories/{subcategory_id}/class-types")
-def list_class_types(category_id: int, subcategory_id: int, location_code: str | None = None, db: Session = Depends(get_db)):
-    return ClassService(db).list_class_types(subcategory_id, location_code)
+def list_class_types(category_id: int, subcategory_id: int, db: Session = Depends(get_db)):
+    return ClassService(db).list_class_types(subcategory_id)
 
 
 # Adapted class/service detail endpoint from clinic capability/service read model.
@@ -47,11 +47,10 @@ def get_preparation(class_type_id: int, db: Session = Depends(get_db)):
 @router.get("/class-types/{class_type_id}/availability", response_model=ClassTypeAvailabilityResponse)
 def get_availability(
     class_type_id: int,
-    location_code: str,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     trainer_id: int | None = None,
     query_type: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return ClassService(db).get_availability(class_type_id, location_code, date_from, date_to, trainer_id, query_type)
+    return ClassService(db).get_availability(class_type_id, date_from, date_to, trainer_id, query_type)

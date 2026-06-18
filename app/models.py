@@ -127,24 +127,6 @@ class MemberProfile(TenantMixin, Base):
 	user: Mapped[User] = relationship(back_populates="profile")
 
 
-class Location(TenantMixin, Base):
-	# Adapted from clinic Branch/Sucursal -> gym Location/Facility.
-	__tablename__ = "locations"
-	__table_args__ = (
-		UniqueConstraint("company_id", "location_code", name="uq_location_company_code"),
-	)
-
-	id: Mapped[int] = mapped_column(Integer, primary_key=True)
-	location_code: Mapped[str] = mapped_column(String(50), index=True)
-	name: Mapped[str] = mapped_column(String(120))
-
-	trainers: Mapped[list[Trainer]] = relationship(back_populates="location")
-	categories: Mapped[list[ClassCategory]] = relationship(back_populates="location")
-	class_types: Mapped[list[ClassType]] = relationship(back_populates="location")
-	slots: Mapped[list[Slot]] = relationship(back_populates="location")
-	bookings: Mapped[list[Booking]] = relationship(back_populates="location")
-
-
 class Discipline(TenantMixin, Base):
 	# Adapted from clinic Specialty/Especialidad -> gym Discipline.
 	__tablename__ = "disciplines"
@@ -177,7 +159,6 @@ class Trainer(TenantMixin, Base):
 	photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 	certifications: Mapped[list[str]] = mapped_column(JSON, default=list)
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
 	# Links a trainer record to its authenticated User (the "trainer" role demo
 	# user). Nullable because catalog trainers (e.g. seeded directory entries)
 	# have no login; the one seeded staff trainer per company is linked here so
@@ -185,7 +166,6 @@ class Trainer(TenantMixin, Base):
 	user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
 	user: Mapped[User | None] = relationship(back_populates="trainer_profile")
-	location: Mapped[Location | None] = relationship(back_populates="trainers")
 	disciplines: Mapped[list[Discipline]] = relationship(secondary=trainer_disciplines, back_populates="trainers")
 	membership_plans: Mapped[list[MembershipPlan]] = relationship(
 		secondary=trainer_membership_plans,
@@ -202,9 +182,7 @@ class ClassCategory(TenantMixin, Base):
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	name: Mapped[str] = mapped_column(String(120))
 	icon_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
 
-	location: Mapped[Location | None] = relationship(back_populates="categories")
 	subcategories: Mapped[list[ClassSubcategory]] = relationship(back_populates="category")
 	membership_plans: Mapped[list[MembershipPlan]] = relationship(
 		secondary=membership_plan_categories,
@@ -231,14 +209,12 @@ class ClassType(TenantMixin, Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	subcategory_id: Mapped[int] = mapped_column(ForeignKey("class_subcategories.id"), index=True)
-	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
 	name: Mapped[str] = mapped_column(String(120))
 	schedule_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 	preparation_info: Mapped[str | None] = mapped_column(Text, nullable=True)
 	pdf_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 	subcategory: Mapped[ClassSubcategory] = relationship(back_populates="class_types")
-	location: Mapped[Location | None] = relationship(back_populates="class_types")
 	slots: Mapped[list[Slot]] = relationship(back_populates="class_type")
 	bookings: Mapped[list[Booking]] = relationship(back_populates="class_type")
 
@@ -252,7 +228,6 @@ class Slot(TenantMixin, Base):
 
 	id: Mapped[int] = mapped_column(Integer, primary_key=True)
 	slot_datetime: Mapped[datetime] = mapped_column(DateTime, index=True)
-	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
 	trainer_id: Mapped[int | None] = mapped_column(ForeignKey("trainers.id"), nullable=True)
 	discipline_id: Mapped[int | None] = mapped_column(ForeignKey("disciplines.id"), nullable=True)
 	class_type_id: Mapped[int | None] = mapped_column(ForeignKey("class_types.id"), nullable=True)
@@ -260,7 +235,6 @@ class Slot(TenantMixin, Base):
 	slot_assignment_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
 	schedule_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-	location: Mapped[Location | None] = relationship(back_populates="slots")
 	trainer: Mapped[Trainer | None] = relationship(back_populates="slots")
 	discipline: Mapped[Discipline | None] = relationship(back_populates="slots")
 	class_type: Mapped[ClassType | None] = relationship(back_populates="slots")
@@ -288,7 +262,6 @@ class Booking(TenantMixin, Base):
 	discipline_id: Mapped[int | None] = mapped_column(ForeignKey("disciplines.id"), nullable=True)
 	class_type_id: Mapped[int | None] = mapped_column(ForeignKey("class_types.id"), nullable=True)
 	category_id: Mapped[int | None] = mapped_column(ForeignKey("class_categories.id"), nullable=True)
-	location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id"), nullable=True)
 	slot_assignment_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
 	user: Mapped[User] = relationship(back_populates="bookings")
@@ -297,7 +270,6 @@ class Booking(TenantMixin, Base):
 	discipline: Mapped[Discipline | None] = relationship(back_populates="bookings")
 	class_type: Mapped[ClassType | None] = relationship(back_populates="bookings")
 	category: Mapped[ClassCategory | None] = relationship(back_populates="bookings")
-	location: Mapped[Location | None] = relationship(back_populates="bookings")
 
 
 class MembershipPlan(TenantMixin, Base):

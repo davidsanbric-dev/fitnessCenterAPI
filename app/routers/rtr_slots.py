@@ -19,7 +19,6 @@ router = APIRouter(prefix="/slots", tags=["slots"], dependencies=[Depends(get_cu
 def search_slots(
     date_from: datetime,
     date_to: datetime,
-    location_code: str | None = None,
     trainer_id: int | None = None,
     discipline_id: int | None = None,
     discipline_code: str | None = None,
@@ -33,7 +32,6 @@ def search_slots(
     return SlotService(db).search_slots(
         date_from=date_from,
         date_to=date_to,
-        location_code=location_code,
         trainer_id=trainer_id,
         discipline_id=discipline_id,
         discipline_code=discipline_code,

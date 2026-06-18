@@ -35,7 +35,6 @@ class SlotTrainerInfo(APIModel):
 class SlotResponse(APIModel):
     # Unified adapted slot projection (appointments + service appointments).
     slot_datetime: datetime
-    location_id: int | None = None
     slot_assignment_code: str | None = None
     schedule_type: str | None = None
     is_available: bool
@@ -45,7 +44,6 @@ class SlotResponse(APIModel):
     def from_model(cls, slot: Slot) -> SlotResponse:
         return cls(
             slot_datetime=slot.slot_datetime,
-            location_id=slot.location_id,
             slot_assignment_code=slot.slot_assignment_code,
             schedule_type=slot.schedule_type,
             is_available=slot.is_available,

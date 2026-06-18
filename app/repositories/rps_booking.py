@@ -10,7 +10,6 @@ from app.models import (
     Booking,
     ClassType,
     Discipline,
-    Location,
     Slot,
     Trainer,
     User,
@@ -25,7 +24,6 @@ class BookingRepository:
     def get_slot_for_trainer_booking(
         self,
         booking_datetime: datetime,
-        location_code: str,
         trainer_code: int,
         discipline_code: str,
     ) -> Slot | None:
@@ -40,14 +38,12 @@ class BookingRepository:
         # sub-minute precision.
         statement = (
             select(Slot)
-            .join(Slot.location)
             .join(Slot.trainer)
             .join(Slot.discipline)
             .where(
                 Slot.slot_datetime >= booking_datetime,
                 Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
-                self._location_clause(location_code),
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
             )
         )
@@ -61,7 +57,6 @@ class BookingRepository:
     def get_slot_for_class_type_booking(
         self,
         booking_datetime: datetime,
-        location_code: str,
         trainer_code: int,
         class_type_id: int,
         slot_assignment_code: str,
@@ -70,32 +65,18 @@ class BookingRepository:
         # Match within the booking's minute (see get_slot_for_trainer_booking).
         statement = (
             select(Slot)
-            .join(Slot.location)
             .join(Slot.trainer)
             .join(Slot.class_type)
             .where(
                 Slot.slot_datetime >= booking_datetime,
                 Slot.slot_datetime < booking_datetime + timedelta(minutes=1),
                 Slot.is_available.is_(True),
-                self._location_clause(location_code),
                 (Trainer.trainer_code == trainer_code) | (Trainer.id == trainer_code),
                 ClassType.id == class_type_id,
                 Slot.slot_assignment_code == slot_assignment_code,
             )
         )
         return self.db.scalar(statement)
-
-    @staticmethod
-    def _location_clause(location_code: str):
-        # The client may send either the alphanumeric location code (e.g.
-        # "LOC001") or the numeric location id stringified (the mobile booking
-        # flow sends location_id, since the slot payload only carries the id).
-        # Accept both -- mirrors how trainer_code/discipline_code resolve by
-        # code OR id above.
-        normalized = (location_code or "").strip()
-        if normalized.isdigit():
-            return Location.id == int(normalized)
-        return Location.location_code == normalized
 
     def create_booking(self, booking: Booking, slot: Slot | None = None) -> Booking:
         self.db.add(booking)
@@ -121,7 +102,6 @@ class BookingRepository:
         date_to: datetime | None = None,
         trainer_id: int | None = None,
         discipline_id: int | None = None,
-        location_code: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Booking], int]:
@@ -142,9 +122,6 @@ class BookingRepository:
         if discipline_id is not None:
             statement = statement.where(Booking.discipline_id == discipline_id)
             count_statement = count_statement.where(Booking.discipline_id == discipline_id)
-        if location_code is not None:
-            statement = statement.join(Booking.location).where(Location.location_code == location_code)
-            count_statement = count_statement.join(Booking.location).where(Location.location_code == location_code)
         total = int(self.db.scalar(count_statement) or 0)
         ordered = statement.order_by(Booking.booking_datetime.desc())
         # page_size == 0 means "no pagination": return every matching row.
@@ -161,7 +138,6 @@ class BookingRepository:
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
-                selectinload(Booking.location),
             )
             .where(Booking.user_id == user_id)
         )
@@ -174,7 +150,6 @@ class BookingRepository:
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
-                selectinload(Booking.location),
             )
             .where(Booking.id == booking_id)
         )
@@ -201,7 +176,6 @@ class BookingRepository:
         date_to: datetime | None = None,
         trainer_id: int | None = None,
         discipline_id: int | None = None,
-        location_code: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Booking], int]:
@@ -212,7 +186,6 @@ class BookingRepository:
                 selectinload(Booking.trainer).selectinload(Trainer.disciplines),
                 selectinload(Booking.class_type),
                 selectinload(Booking.category),
-                selectinload(Booking.location),
             )
         )
         count_statement = select(func.count()).select_from(Booking)
@@ -232,9 +205,6 @@ class BookingRepository:
         if discipline_id is not None:
             statement = statement.where(Booking.discipline_id == discipline_id)
             count_statement = count_statement.where(Booking.discipline_id == discipline_id)
-        if location_code is not None:
-            statement = statement.join(Booking.location).where(Location.location_code == location_code)
-            count_statement = count_statement.join(Booking.location).where(Location.location_code == location_code)
 
         total = int(self.db.scalar(count_statement) or 0)
         items = self.db.scalars(

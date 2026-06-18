@@ -23,15 +23,6 @@ _SEED_LOCK_KEY = 478_215_001
 # only the new company without disturbing existing ones.
 _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
-	# LOCATIONS (unique per company_id + location_code)
-	# -------------------------------------------------------------------------
-	"""
-	INSERT INTO locations (company_id, location_code, name) VALUES
-	  (:cid, 'LOC001', 'Downtown Gym'),
-	  (:cid, 'LOC002', 'North Branch')
-	ON CONFLICT (company_id, location_code) DO NOTHING
-	""",
-	# -------------------------------------------------------------------------
 	# DISCIPLINES (unique per company_id + discipline_code)
 	# -------------------------------------------------------------------------
 	"""
@@ -58,20 +49,16 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# CLASS CATEGORIES (no business unique key -> guard with NOT EXISTS per company)
 	# -------------------------------------------------------------------------
 	"""
-	INSERT INTO class_categories (company_id, name, icon_url, location_id)
-	SELECT :cid, 'Mind & Body', '/icons/mind-body.svg', l.id
-	FROM locations l
-	WHERE l.company_id = :cid AND l.location_code = 'LOC001'
-	  AND NOT EXISTS (
+	INSERT INTO class_categories (company_id, name, icon_url)
+	SELECT :cid, 'Mind & Body', '/icons/mind-body.svg'
+	WHERE NOT EXISTS (
 	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Mind & Body'
 	  )
 	""",
 	"""
-	INSERT INTO class_categories (company_id, name, icon_url, location_id)
-	SELECT :cid, 'Performance', '/icons/performance.svg', l.id
-	FROM locations l
-	WHERE l.company_id = :cid AND l.location_code = 'LOC002'
-	  AND NOT EXISTS (
+	INSERT INTO class_categories (company_id, name, icon_url)
+	SELECT :cid, 'Performance', '/icons/performance.svg'
+	WHERE NOT EXISTS (
 	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Performance'
 	  )
 	""",
@@ -100,35 +87,32 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# CLASS TYPES
 	# -------------------------------------------------------------------------
 	"""
-	INSERT INTO class_types (company_id, name, subcategory_id, location_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'Sunrise Yoga', sc.id, l.id, 'GROUP', 'Bring a yoga mat and water bottle.', 'YOGA-001'
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'Sunrise Yoga', sc.id, 'GROUP', 'Bring a yoga mat and water bottle.', 'YOGA-001'
 	FROM class_subcategories sc
-	JOIN locations l ON l.company_id = :cid AND l.location_code = 'LOC001'
 	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Sunrise Yoga'
 	  )
 	""",
 	"""
-	INSERT INTO class_types (company_id, name, subcategory_id, location_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'CrossFit Starter', sc.id, l.id, 'GROUP', 'Arrive 10 minutes early for warm-up.', 'CF-010'
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'CrossFit Starter', sc.id, 'GROUP', 'Arrive 10 minutes early for warm-up.', 'CF-010'
 	FROM class_subcategories sc
-	JOIN locations l ON l.company_id = :cid AND l.location_code = 'LOC002'
 	WHERE sc.company_id = :cid AND sc.name = 'Strength'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'CrossFit Starter'
 	  )
 	""",
 	# One-on-one PERSONAL class type used by the staff trainer's completed-session
-	# history (see _COMPLETED_BOOKINGS_SQL). Anchored at LOC001 under the Mind &
-	# Body / Yoga Flow subcategory to match the staff trainer's YOGA discipline.
+	# history (see _COMPLETED_BOOKINGS_SQL). Under the Mind & Body / Yoga Flow
+	# subcategory to match the staff trainer's YOGA discipline.
 	"""
-	INSERT INTO class_types (company_id, name, subcategory_id, location_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'Assessment Session', sc.id, l.id, 'PERSONAL',
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'Assessment Session', sc.id, 'PERSONAL',
 	       'Wear comfortable clothing and bring water; includes body measurements and a mobility screen.',
 	       'ASSESS-001'
 	FROM class_subcategories sc
-	JOIN locations l ON l.company_id = :cid AND l.location_code = 'LOC001'
 	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Assessment Session'
@@ -138,19 +122,15 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# TRAINERS (unique per company_id + trainer_code)
 	# -------------------------------------------------------------------------
 	"""
-	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active, location_id)
+	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
 	SELECT :cid, 1001, 'Sofia Ramirez', 'Yoga instructor focused on flexibility and balance.',
-	       'sofia_ramirez_profile_image.webp', '["RYT-500", "Mobility Coach"]'::json, TRUE, l.id
-	FROM locations l
-	WHERE l.company_id = :cid AND l.location_code = 'LOC001'
+	       'sofia_ramirez_profile_image.webp', '["RYT-500", "Mobility Coach"]'::json, TRUE
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
 	""",
 	"""
-	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active, location_id)
+	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
 	SELECT :cid, 1002, 'Diego Herrera', 'Cross-training coach with performance background.',
-	       'diego_herrera_profile_image.webp', '["CrossFit Level 2", "TRX Coach"]'::json, TRUE, l.id
-	FROM locations l
-	WHERE l.company_id = :cid AND l.location_code = 'LOC002'
+	       'diego_herrera_profile_image.webp', '["CrossFit Level 2", "TRX Coach"]'::json, TRUE
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
 	""",
 	# Backfill the profile-image filenames on pre-existing catalog trainers whose
@@ -212,16 +192,15 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO slots (
-	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  company_id, slot_datetime, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid, date_trunc('minute', (NOW() + INTERVAL '1 day' + INTERVAL '7 hours')::timestamptz),
-	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-100', 'GROUP'
-	FROM locations l
-	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1001
+	       t.id, d.id, ct.id, TRUE, 'ASG-100', 'GROUP'
+	FROM trainers t
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'YOGA'
 	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'Sunrise Yoga'
-	WHERE l.company_id = :cid AND l.location_code = 'LOC001'
+	WHERE t.company_id = :cid AND t.trainer_code = 1001
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s WHERE s.company_id = :cid AND s.slot_assignment_code = 'ASG-100'
 	  )
@@ -229,16 +208,15 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	""",
 	"""
 	INSERT INTO slots (
-	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  company_id, slot_datetime, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid, date_trunc('minute', (NOW() + INTERVAL '2 days' + INTERVAL '18 hours')::timestamptz),
-	       l.id, t.id, d.id, ct.id, TRUE, 'ASG-200', 'GROUP'
-	FROM locations l
-	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = 1002
+	       t.id, d.id, ct.id, TRUE, 'ASG-200', 'GROUP'
+	FROM trainers t
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'CROSSFIT'
 	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'CrossFit Starter'
-	WHERE l.company_id = :cid AND l.location_code = 'LOC002'
+	WHERE t.company_id = :cid AND t.trainer_code = 1002
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s WHERE s.company_id = :cid AND s.slot_assignment_code = 'ASG-200'
 	  )
@@ -531,18 +509,17 @@ _STAFF_TRAINER_CODE = 2001
 _STAFF_TRAINER_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	# TRAINER RECORD (hardcoded non-credential fields; linked to the trainer user).
-	# unique per (company_id, trainer_code). Anchored at LOC001.
+	# unique per (company_id, trainer_code).
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO trainers (
 	  company_id, trainer_code, full_name, bio, photo_url, certifications,
-	  is_active, location_id, user_id
+	  is_active, user_id
 	)
 	SELECT :cid, 2001, 'Jordan Pike',
 	       'Personal trainer managing one-on-one sessions and availability.',
 	       'jordan_pike_profile_image.webp', '["NASM-CPT", "Strength & Conditioning"]'::json,
 	       TRUE,
-	       (SELECT id FROM locations WHERE company_id = :cid AND location_code = 'LOC001'),
 	       u.id
 	FROM users u
 	WHERE lower(u.email) = :email
@@ -577,12 +554,12 @@ _STAFF_TRAINER_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO slots (
-	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  company_id, slot_datetime, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid,
 	       date_trunc('minute', (NOW() + INTERVAL '2 days' + (gs.n || ' days')::interval + INTERVAL '9 hours')::timestamptz),
-	       t.location_id, t.id, d.id,
+	       t.id, d.id,
 	       (SELECT id FROM class_types WHERE company_id = :cid AND name = 'Assessment Session'),
 	       TRUE, 'TRN2001-' || gs.n, 'PERSONAL'
 	FROM generate_series(0, 5) AS gs(n)
@@ -623,12 +600,12 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO slots (
-	  company_id, slot_datetime, location_id, trainer_id, discipline_id,
+	  company_id, slot_datetime, trainer_id, discipline_id,
 	  class_type_id, is_available, slot_assignment_code, schedule_type
 	)
 	SELECT :cid,
 	       date_trunc('day', NOW()::timestamptz) - (g.days_ago || ' days')::interval + INTERVAL '9 hours',
-	       t.location_id, t.id, d.id, ct.id, FALSE, 'TRN2001-DONE-' || g.n, 'PERSONAL'
+	       t.id, d.id, ct.id, FALSE, 'TRN2001-DONE-' || g.n, 'PERSONAL'
 	FROM (SELECT * FROM unnest(ARRAY[6, 4, 2]) WITH ORDINALITY AS u(days_ago, n)) g
 	CROSS JOIN trainers t
 	CROSS JOIN disciplines d
@@ -651,12 +628,12 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	INSERT INTO bookings (
 	  company_id, user_id, slot_id, booking_status, booking_datetime, scheduled_at,
 	  updated_at, session_duration_minutes, has_pdf, is_overbooking,
-	  trainer_id, discipline_id, location_id, class_type_id, category_id,
+	  trainer_id, discipline_id, class_type_id, category_id,
 	  preparation_info, pdf_code, slot_assignment_code, notes
 	)
 	SELECT :cid, m.id, s.id, 'COMPLETED', s.slot_datetime, s.slot_datetime - INTERVAL '2 days',
 	       s.slot_datetime, 60, (ct.pdf_code IS NOT NULL), FALSE,
-	       s.trainer_id, s.discipline_id, s.location_id, s.class_type_id, cc.id,
+	       s.trainer_id, s.discipline_id, s.class_type_id, cc.id,
 	       ct.preparation_info, ct.pdf_code, s.slot_assignment_code,
 	       -- Cohesive trainer notes across the 3 completed sessions (codes
 	       -- TRN2001-DONE-1..3, oldest to newest) so the history reads as real

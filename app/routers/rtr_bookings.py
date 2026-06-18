@@ -45,7 +45,6 @@ def list_bookings(
     date_to: datetime | None = None,
     trainer_id: int | None = None,
     discipline_id: int | None = None,
-    location_code: str | None = None,
     page: int = Query(default=1, ge=1),
     # page_size == 0 returns the full set unpaginated (used by the member's
     # training-history view, which paginates completed sessions client-side).
@@ -60,7 +59,6 @@ def list_bookings(
         date_to=date_to,
         trainer_id=trainer_id,
         discipline_id=discipline_id,
-        location_code=location_code,
         page=page,
         page_size=page_size,
     )
@@ -80,11 +78,10 @@ def upcoming_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(
     booking_id: int,
-    location_code: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return BookingService(db).get_booking(current_user.id, booking_id, location_code)
+    return BookingService(db).get_booking(current_user.id, booking_id)
 
 
 # Adapted from clinic UpdateAppointmentStatusCommand.
@@ -95,4 +92,4 @@ def update_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return BookingService(db).update_status(current_user.id, booking_id, payload.booking_status, payload.location_code, payload.notes)
+    return BookingService(db).update_status(current_user.id, booking_id, payload.booking_status, payload.notes)
