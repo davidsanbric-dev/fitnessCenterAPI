@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
 
+from app.core.media import profile_image_url
 from app.schemas import APIModel
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ class CurrentUserResponse(APIModel):
             landline_phone=profile.landline_phone,
             birth_date=profile.birth_date,
             address=profile.address,
-            avatar_url=profile.avatar_url,
+            avatar_url=profile_image_url(profile.avatar_url),
             membership_plan=membership_plan,
             fitness_goals=profile.fitness_goals,
             created_at=user.created_at,
@@ -75,4 +76,8 @@ class UpdateUserRequest(APIModel):
     birth_date: date | None = None
     address: str | None = None
     avatar_url: str | None = None
+    # New avatar as a data URL ("data:image/png;base64,...") or raw base64. When
+    # set it is transcoded to WebP and stored; ``avatar_url`` is derived from the
+    # resulting filename.
+    avatar_image: str | None = None
     fitness_goals: str | None = None

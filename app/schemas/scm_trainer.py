@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import EmailStr, Field, field_validator
 
+from app.core.media import profile_image_url
 from app.schemas import APIModel
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ class TrainerSummary(APIModel):
             location_id=trainer.location_id,
             location_name=trainer.location.name if trainer.location else None,
             bio=trainer.bio,
-            photo_url=trainer.photo_url,
+            photo_url=profile_image_url(trainer.photo_url),
             certifications=trainer.certifications or [],
         )
 
@@ -107,7 +108,7 @@ class TrainerDetailResponse(APIModel):
             trainer_code=trainer.trainer_code,
             full_name=trainer.full_name,
             bio=trainer.bio,
-            photo_url=trainer.photo_url,
+            photo_url=profile_image_url(trainer.photo_url),
             certifications=trainer.certifications or [],
             disciplines=[TrainerDisciplineInfo.from_model(discipline) for discipline in trainer.disciplines],
             upcoming_availability=upcoming,
@@ -138,7 +139,7 @@ class TrainerMeProfileResponse(APIModel):
             full_name=trainer.full_name,
             email=email,
             bio=trainer.bio,
-            photo_url=trainer.photo_url,
+            photo_url=profile_image_url(trainer.photo_url),
             certifications=trainer.certifications or [],
             location_id=trainer.location_id,
             disciplines=[TrainerDisciplineInfo.from_model(discipline) for discipline in trainer.disciplines],
@@ -172,6 +173,11 @@ class TrainerMeProfileUpdate(APIModel):
     full_name: str | None = None
     bio: str | None = None
     photo_url: str | None = None
+    # New profile photo as a data URL ("data:image/png;base64,...") or raw base64.
+    # When set it is transcoded to WebP and stored; ``photo_url`` is derived from
+    # the resulting filename (the raw ``photo_url`` field above is now vestigial
+    # for clients that still send a literal path).
+    photo_image: str | None = None
     certifications: list[str] | None = None
 
 

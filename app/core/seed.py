@@ -140,7 +140,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	"""
 	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active, location_id)
 	SELECT :cid, 1001, 'Sofia Ramirez', 'Yoga instructor focused on flexibility and balance.',
-	       '/images/trainers/sofia.jpg', '["RYT-500", "Mobility Coach"]'::json, TRUE, l.id
+	       'sofia_ramirez_profile_image.webp', '["RYT-500", "Mobility Coach"]'::json, TRUE, l.id
 	FROM locations l
 	WHERE l.company_id = :cid AND l.location_code = 'LOC001'
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
@@ -148,10 +148,24 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	"""
 	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active, location_id)
 	SELECT :cid, 1002, 'Diego Herrera', 'Cross-training coach with performance background.',
-	       '/images/trainers/diego.jpg', '["CrossFit Level 2", "TRX Coach"]'::json, TRUE, l.id
+	       'diego_herrera_profile_image.webp', '["CrossFit Level 2", "TRX Coach"]'::json, TRUE, l.id
 	FROM locations l
 	WHERE l.company_id = :cid AND l.location_code = 'LOC002'
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
+	""",
+	# Backfill the profile-image filenames on pre-existing catalog trainers whose
+	# rows predate this change (the ON CONFLICT inserts above leave them untouched).
+	# Only replaces NULLs or the old dead ``/images/...`` seed paths, so a photo a
+	# trainer later uploaded (a bare filename) is never overwritten.
+	"""
+	UPDATE trainers SET photo_url = 'sofia_ramirez_profile_image.webp'
+	WHERE company_id = :cid AND trainer_code = 1001
+	  AND (photo_url IS NULL OR photo_url LIKE '/images/%')
+	""",
+	"""
+	UPDATE trainers SET photo_url = 'diego_herrera_profile_image.webp'
+	WHERE company_id = :cid AND trainer_code = 1002
+	  AND (photo_url IS NULL OR photo_url LIKE '/images/%')
 	""",
 	# -------------------------------------------------------------------------
 	# TRAINER-DISCIPLINE ASSOCIATIONS (both sides scoped to :cid)
@@ -390,7 +404,7 @@ _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
 		"landline_phone": None,
 		"birth_date": "1993-07-22",
 		"address": "Av. Providencia 456, Santiago",
-		"avatar_url": "/images/members/demo_member.jpg",
+		"avatar_url": "alex_torres_profile_image.webp",
 		"fitness_goals": "Build endurance and increase overall strength through consistent group classes.",
 	},
 }
@@ -470,6 +484,22 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				{"rut": member_rut, "email": email},
 			)
 
+			# Backfill the avatar filename on pre-existing profiles whose row
+			# predates this change (ON CONFLICT above leaves existing rows
+			# untouched). NULL/legacy ``/images/...`` path only, so an avatar the
+			# member later uploaded (a bare filename) is never overwritten.
+			seeded_avatar = profile.get("avatar_url")
+			if seeded_avatar:
+				bind.execute(
+					sa.text(
+						"UPDATE member_profiles SET avatar_url = :avatar "
+						"FROM users u "
+						"WHERE member_profiles.user_id = u.id AND lower(u.email) = :email "
+						"  AND (member_profiles.avatar_url IS NULL OR member_profiles.avatar_url LIKE '/images/%')"
+					),
+					{"avatar": seeded_avatar, "email": email},
+				)
+
 			# Members get a Basic plan subscription so the mobile app can surface it
 			# and the booking allowance can be enforced. Idempotent: skipped when the
 			# member already has a membership (user_id is unique on the table).
@@ -510,13 +540,20 @@ _STAFF_TRAINER_SQL: list[str] = [
 	)
 	SELECT :cid, 2001, 'Jordan Pike',
 	       'Personal trainer managing one-on-one sessions and availability.',
-	       '/images/trainers/staff.jpg', '["NASM-CPT", "Strength & Conditioning"]'::json,
+	       'jordan_pike_profile_image.webp', '["NASM-CPT", "Strength & Conditioning"]'::json,
 	       TRUE,
 	       (SELECT id FROM locations WHERE company_id = :cid AND location_code = 'LOC001'),
 	       u.id
 	FROM users u
 	WHERE lower(u.email) = :email
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
+	""",
+	# Backfill the photo filename on a pre-existing staff trainer (the insert
+	# above is a no-op once the row exists). NULL/legacy-path only, as above.
+	"""
+	UPDATE trainers SET photo_url = 'jordan_pike_profile_image.webp'
+	WHERE company_id = :cid AND trainer_code = 2001
+	  AND (photo_url IS NULL OR photo_url LIKE '/images/%')
 	""",
 	# -------------------------------------------------------------------------
 	# TRAINER-DISCIPLINE ASSOCIATION (gives the staff trainer a discipline so its

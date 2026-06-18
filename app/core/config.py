@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 	# is a Dokploy bind volume mounted on the API service (env BLOG_IMAGES_PATH);
 	# locally it defaults to a repo-relative folder.
 	blog_images_path: str = Field(default="blog_images")
+	# Filesystem directory where trainer/member profile images are written. Same
+	# bind-volume model as ``blog_images_path`` (env PROFILE_IMAGES_PATH); locally
+	# it defaults to a repo-relative folder.
+	profile_images_path: str = Field(default="profile_images")
 	firebase_project_id: str | None = None
 	firebase_service_account_path: str | None = None
 	cors_origins: list[str] = Field(default_factory=list)

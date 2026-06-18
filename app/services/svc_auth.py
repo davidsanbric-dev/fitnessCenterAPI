@@ -9,6 +9,7 @@ from app.core.client_origin import ClientOrigin
 from app.core.config import ALLOWED_ROLES_BY_ORIGIN, settings
 from app.core.exceptions import UnauthorizedException
 from app.core.firebase_auth import set_firebase_custom_claims
+from app.core.media import delete_profile_image, save_profile_image
 from app.domain import Rut, enforce_origin_login_allowed
 from app.core.tenancy import set_session_company
 from app.models import (
@@ -70,6 +71,15 @@ class AuthService:
 
     def update_profile(self, user_id: int, payload: dict) -> CurrentUserResponse:
         user = self.guards.require_user_with_profile(user_id)
+        # A new avatar is uploaded as base64; persist it to the profile-image
+        # volume and derive ``avatar_url`` from the stored filename, reclaiming
+        # the previous owned file. Mirrors the trainer photo handling.
+        raw_image = payload.pop("avatar_image", None)
+        if raw_image:
+            old_avatar = user.profile.avatar_url
+            payload["avatar_url"] = save_profile_image(self.db, raw_image)
+            if old_avatar and old_avatar != payload["avatar_url"]:
+                delete_profile_image(old_avatar)
         updated = self.user_repository.update_profile(user, payload)
         return CurrentUserResponse.from_model(updated)
 

@@ -9,6 +9,7 @@ from app.core.exceptions import (
     InternalServerErrorException,
 )
 from app.core.firebase_auth import create_or_align_firebase_account
+from app.core.media import delete_profile_image, save_profile_image
 from app.core.tenancy import get_session_company
 from app.models import Slot, Trainer, User
 from app.repositories.rps_discipline import DisciplineRepository
@@ -114,6 +115,15 @@ class TrainerService:
 
     def update_my_profile(self, user: User, payload: dict) -> TrainerMeProfileResponse:
         trainer = self._require_self(user)
+        # A new photo is uploaded as base64; persist it to the profile-image
+        # volume and derive ``photo_url`` from the stored filename, reclaiming the
+        # previous owned file. Mirrors BlogService image handling.
+        raw_image = payload.pop("photo_image", None)
+        if raw_image:
+            old_photo = trainer.photo_url
+            payload["photo_url"] = save_profile_image(self.db, raw_image)
+            if old_photo and old_photo != payload["photo_url"]:
+                delete_profile_image(old_photo)
         trainer = self.repository.update_trainer(trainer, payload)
         return TrainerMeProfileResponse.from_trainer(trainer, user.email)
 
