@@ -369,11 +369,16 @@ def _seed_roles(bind) -> None:
 		)
 
 
-# Hardcoded personal-data for known demo member accounts, keyed by lower-case
-# email. Mirrors how _STAFF_TRAINER_SQL supplies specific values for Jordan Pike
-# instead of leaving fields as placeholders or random-generated.
+# Hardcoded personal-data for known demo member accounts, keyed by the email
+# *local-part* (the text before "@") drawn from demo_users.json -- the single
+# source of truth for demo credentials. The same local-part (e.g. "alex-member")
+# is reused across every company's address, so one persona entry covers them all
+# without re-hardcoding a full email here that can silently drift from the JSON.
+# Any key matching no demo member fails loudly in _seed_demo_users rather than
+# falling through to placeholder data. Mirrors how _STAFF_TRAINER_SQL supplies
+# specific values for Jordan Pike instead of placeholders or random-generated.
 _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
-	"member@otrofyjobapply.com": {
+	"alex-member": {
 		"first_name": "Alex",
 		"paternal_surname": "Torres",
 		"maternal_surname": "Vega",
@@ -392,6 +397,24 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 	# Firebase-linked demo users + profiles, scoped to their company. Email is
 	# globally unique and is the key that resolves a user back to its company at
 	# login (see app.core.dependencies.get_current_user).
+	#
+	# Guard: every hardcoded persona must key off a real demo member's email
+	# local-part from demo_users.json (the single source of truth for demo
+	# credentials). Without this, a typo or a renamed email silently seeds the
+	# fallback placeholders instead -- the exact drift this replaced.
+	member_local_parts = {
+		email.split("@", 1)[0].lower()
+		for members in settings.demo_companies.values()
+		for role_name, email, _password in members
+		if role_name != "trainer"
+	}
+	unknown_personas = set(_DEMO_MEMBER_PROFILES) - member_local_parts
+	if unknown_personas:
+		raise ValueError(
+			"_DEMO_MEMBER_PROFILES keys do not match any demo member email in "
+			f"demo_users.json: {sorted(unknown_personas)}"
+		)
+
 	for slug, members in settings.demo_companies.items():
 		company_id = company_id_by_slug.get(slug)
 		if company_id is None:
@@ -416,8 +439,8 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				_seed_trainer_staff(bind, company_id, email)
 				continue
 
-			profile = _DEMO_MEMBER_PROFILES.get(email.lower(), {})
-			# Deterministic phone fallback for emails not in _DEMO_MEMBER_PROFILES so
+			profile = _DEMO_MEMBER_PROFILES.get(local_part.lower(), {})
+			# Deterministic phone fallback for members not in _DEMO_MEMBER_PROFILES so
 			# the NOT NULL mobile_phone column is always satisfied without random().
 			fallback_phone = "+569" + hashlib.md5(email.encode()).hexdigest()[:8]
 			# Hardcoded RUT when known, otherwise a deterministic well-formed value.

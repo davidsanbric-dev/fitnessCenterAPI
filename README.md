@@ -102,4 +102,4 @@ Seed data now runs via Alembic on application startup (after tables are created)
 ## Related Migration Docs
 
 - Flutter clinic->gym migration map:
-	`../portfolio_mobile_app/MIGRATION_MAP.md`
+	`../fitnesscenter_mobile/MIGRATION_MAP.md`
