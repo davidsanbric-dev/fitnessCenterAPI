@@ -1,105 +1,60 @@
-# `project_api`
+# FitnessCenter API
 
-Gym scheduling backend generated from the clinic-to-gym adaptation contract.
+FastAPI backend powering the **FitnessCenter Suite** — the single source of truth for the Flutter mobile app (members) and the Nuxt.js admin web (staff). One role-aware, multi-tenant service handles auth, scheduling, bookings, content, notifications, and membership.
 
-## Features
+## Architecture
 
-- JWT auth with register, login, refresh, logout, and profile management
-- Catalog endpoints for trainers, disciplines, categories, class types, and slots
-- Booking flows by trainer or class type with cancellation/status updates
-- Membership, notifications, static configuration, and aggregated home dashboard
-- PostgreSQL default persistence with automatic table creation and sample seed data
+Clean, layered, and feature-modular — built to stay scalable and maintainable:
+
+- **Routers → Services → Repositories** — HTTP concerns, business logic, and persistence are separated; each feature domain (`auth`, `bookings`, `classes`, `disciplines`, `trainers`, `memberships`, `notifications`, `blog`, `admin`) is its own module.
+- **Firebase-backed identity, DB-driven authorization** — Firebase verifies ID tokens; the backend resolves the role/permissions from the database and writes them as custom claims. Credentials live in Firebase, authorization lives here.
+- **Origin gating** — `POST /auth/firebase-login` enforces an `X-Client-Platform: mobile | web` header so members sign in only from mobile and staff only from web. Mismatch → `403`; missing/unknown → `400`. The role is resolved from the verified token, so it can never elevate.
+- **Multi-tenancy at the ORM session layer** — every tenant-scoped query is auto-filtered by company and every insert auto-stamped, so business code can't cross tenants by accident.
+- **Event-driven notifications** — member booking/cancellation events create staff/trainer inbox notifications; staff actions (blog publish, announcements, status changes) dispatch FCM push to members via `app/core/push.py`.
+
+## Multi-tenant seeding (per recruiter/tester)
+
+Seed data runs via Alembic on startup and is driven by `credentials/demo_users.json`, keyed by **company slug**:
+
+```json
+{
+  "otrofy":    { "admin": "admin@...:pw", "member": "alex@...:pw", "trainer": "jordan@...:pw" },
+  "sebastian": { "admin": "admin@...:pw", "member": "alex@...:pw", "trainer": "jordan@...:pw" }
+}
+```
+
+Each top-level entry provisions one **isolated, identically-shaped company** (disciplines, plans, class catalog, a staff trainer with starter slots, blog, booking history). The seed is **idempotent** (`ON CONFLICT` / `NOT EXISTS`): adding a slug and restarting provisions only the newcomer, leaving existing tenants untouched. This is how each tester/recruiter gets their own private gym to explore the full suite.
+
+## Tech stack
+
+**FastAPI · Python · PostgreSQL · SQLAlchemy · Alembic · Firebase Admin (Auth + Cloud Messaging)**
 
 ## Run
 
 ```bash
-cd /home/david/Escritorio/portfolio/project_api
+cp .env.example .env          # set DATABASE_URL, FIREBASE_* and demo_users path
+docker compose up -d db       # PostgreSQL on host port 55432
 uv sync
 uv run python scripts/run_api.py --reload
 ```
 
-Or use the one-command bootstrap flow:
+Or the one-command flow: `make bootstrap && make api` (`Makefile` targets: `db-up`, `db-down`, `deps`, `seed`, `api`, `bootstrap`).
 
-```bash
-cd /home/david/Escritorio/portfolio/project_api
-make bootstrap
-make api
-```
+- API base URL: `http://127.0.0.1:8000/api/v1`
+- Interactive docs (OpenAPI / Swagger UI): `http://127.0.0.1:8000/docs`
 
-Start PostgreSQL first (custom host port `55432` to avoid conflicts):
+### Firebase configuration
 
-```bash
-docker compose up -d db
-```
+Set one of:
 
-Alternative without compose:
+- `FIREBASE_SERVICE_ACCOUNT_PATH=/absolute/path/to/service-account.json`
+- Application Default Credentials in the runtime environment
 
-```bash
-docker run --name gym-postgres \
-	-e POSTGRES_DB=gym_schedule \
-	-e POSTGRES_USER=postgres \
-	-e POSTGRES_PASSWORD=postgres \
-	-p 55432:5432 \
-	-d postgres:17
-```
-
-Before running, initialize local env vars from the template:
-
-```bash
-cp .env.example .env
-```
-
-## API base URL
-
-- `http://127.0.0.1:8000/api/v1`
-
-## Firebase auth setup
-
-- Protected routes now validate Firebase ID tokens.
-- Configure one of the following before running the API:
-	- `FIREBASE_SERVICE_ACCOUNT_PATH=/absolute/path/to/service-account.json`
-	- Application Default Credentials available in the runtime environment.
-- Optional: `FIREBASE_PROJECT_ID=<firebase-project-id>`
-
-### Sign in / sync custom claims after Firebase sign-in
-
-- `POST /api/v1/auth/firebase-login` — shared entry point for both clients.
-	- Request: `{ "id_token": "<firebase-id-token>" }`
-	- Header: `X-Client-Platform: mobile | web` — origin gate enforcing that members
-	  sign in only from the mobile app and staff (admin/manager) only from the web
-	  app. Absent/unknown values are rejected (`400`); role mismatch returns `403`.
-	- Behavior: verifies the token, resolves backend role/permissions, and sets the
-	  Firebase custom claims (`app_role`, `app_display_name`, ...) used by sessions.
-- `GET /api/v1/users/by-email?email=<email>`
-	- Requires admin/manager role (resolved from the database: `users.role_id` → `roles.name`)
-
-### Admin dashboard endpoints (additive)
-
-- `GET /api/v1/admin/home`
-- `GET /api/v1/admin/bookings`
-- `PATCH /api/v1/admin/bookings/{booking_id}/status`
-- `POST /api/v1/admin/membership-plans`
-- `PUT /api/v1/admin/membership-plans/{plan_id}`
-- `DELETE /api/v1/admin/membership-plans/{plan_id}`
-
-Existing member/mobile endpoints remain unchanged and available.
-
-### Seed data
-
-Seed data now runs via Alembic on application startup (after tables are created).
-
+Optional: `FIREBASE_PROJECT_ID=<firebase-project-id>`.
 
 ## Notes
 
-- Default database: `postgresql+psycopg://postgres:postgres@127.0.0.1:55432/gym_schedule`
-- `Makefile` targets available: `db-up`, `db-down`, `deps`, `seed`, `api`, `bootstrap`
-- `make db-up` reuses an existing container already bound to `55432` instead of failing
-- Override settings with environment variables or a local `.env` file
-- The app automatically creates the database schema on startup (lifespan handler), then applies Alembic seed migrations
-- `scripts/run_api.py` avoids `ModuleNotFoundError: app` when running outside `project_api`
-- API process is long-running; run seed in a separate terminal or before starting the server
-
-## Related Migration Docs
-
-- Flutter clinic->gym migration map:
-	`../fitnesscenter_mobile/MIGRATION_MAP.md`
+- The lifespan handler creates the schema on startup, then applies Alembic seed migrations.
+- Default DB: `postgresql+psycopg://postgres:postgres@127.0.0.1:55432/gym_schedule` (custom host port avoids conflicts).
+- `make db-up` reuses an existing container bound to `55432` instead of failing.
+- Override any setting via environment variables or a local `.env`.
