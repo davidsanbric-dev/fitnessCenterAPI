@@ -484,6 +484,18 @@ def _seed_roles(bind) -> None:
 # falling through to placeholder data. Mirrors how _STAFF_TRAINER_SQL supplies
 # specific values for Jordan Pike instead of placeholders or random-generated.
 _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
+	"socio.demo": {
+		"first_name": "Valentina",
+		"paternal_surname": "Soto",
+		"maternal_surname": "Morales",
+		"rut": "19876543-2",
+		"mobile_phone": "+56912345678",
+		"landline_phone": None,
+		"birth_date": "1995-04-18",
+		"address": "Av. Apoquindo 1234, Las Condes, Santiago",
+		"avatar_url": None,
+		"fitness_goals": "Ganar fuerza y mantener una rutina constante de clases grupales.",
+	},
 	"alex-member": {
 		"first_name": "Alex",
 		"paternal_surname": "Torres",
