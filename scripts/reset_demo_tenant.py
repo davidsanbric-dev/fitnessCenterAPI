@@ -41,14 +41,60 @@ def _summarize(connection, company_id: int) -> dict[str, int]:
             sa.text(f"SELECT count(*) FROM {table} WHERE company_id = :cid"),
             {"cid": company_id},
         ).scalar_one()
-        for table in ("bookings", "slots", "member_memberships")
+        for table in (
+            "bookings",
+            "slots",
+            "member_memberships",
+            "disciplines",
+            "class_types",
+            "membership_plans",
+            "trainers",
+            "blogs",
+        )
     }
+
+
+# Catalog teardown in foreign-key order, children first. The association tables
+# carry no company_id of their own, so they are scoped through whichever parent
+# is company-scoped.
+#
+# Needed because the catalog seed is written to be additive: its guards are
+# ON CONFLICT DO NOTHING and NOT EXISTS keyed on *names*. Re-seeding over a
+# tenant that was provisioned with the older English catalog therefore does not
+# rename anything -- it leaves 'Basic' in place and inserts 'Basico' alongside
+# it. Clearing the catalog first is what makes the re-seed authoritative.
+_CATALOG_PURGE_SQL: tuple[str, ...] = (
+    "DELETE FROM bookings WHERE company_id = :cid",
+    "DELETE FROM slots WHERE company_id = :cid",
+    "DELETE FROM member_memberships WHERE company_id = :cid",
+    "DELETE FROM membership_plan_categories WHERE membership_plan_id IN "
+    "  (SELECT id FROM membership_plans WHERE company_id = :cid)",
+    "DELETE FROM trainer_disciplines WHERE trainer_id IN "
+    "  (SELECT id FROM trainers WHERE company_id = :cid)",
+    "DELETE FROM trainer_membership_plans WHERE trainer_id IN "
+    "  (SELECT id FROM trainers WHERE company_id = :cid)",
+    "DELETE FROM class_types WHERE company_id = :cid",
+    "DELETE FROM class_subcategories WHERE company_id = :cid",
+    "DELETE FROM class_categories WHERE company_id = :cid",
+    "DELETE FROM membership_plans WHERE company_id = :cid",
+    "DELETE FROM disciplines WHERE company_id = :cid",
+    "DELETE FROM trainers WHERE company_id = :cid",
+    "DELETE FROM blogs WHERE company_id = :cid",
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slug", required=True, help="target company slug")
     parser.add_argument("--yes", action="store_true", help="skip confirmation")
+    parser.add_argument(
+        "--purge-catalog",
+        action="store_true",
+        help=(
+            "also delete the tenant's catalog (disciplines, plans, trainers, "
+            "class types, blogs) so the re-seed rebuilds it from scratch"
+        ),
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -86,11 +132,19 @@ def main() -> int:
     for table, count in before.items():
         print(f"  {table:<20} {count}")
 
-    print(
-        "\nthis will DELETE that tenant's bookings and slots, reset its booking "
-        "counters, and re-seed the timetable anchored to today."
-    )
-    print("catalog, users, profiles and memberships are left in place.")
+    if args.purge_catalog:
+        print(
+            "\nthis will DELETE that tenant's bookings, slots, memberships AND "
+            "its whole catalog (disciplines, plans, trainers, class types, "
+            "blogs), then re-seed all of it from the current code."
+        )
+        print("users and member profiles are left in place.")
+    else:
+        print(
+            "\nthis will DELETE that tenant's bookings and slots, reset its "
+            "booking counters, and re-seed the timetable anchored to today."
+        )
+        print("catalog, users, profiles and memberships are left in place.")
 
     if args.dry_run:
         print("\ndry run: nothing written.")
@@ -103,22 +157,31 @@ def main() -> int:
             return 1
 
     with engine.begin() as connection:
-        # Bookings reference slots, so they go first.
-        deleted_bookings = connection.execute(
-            sa.text("DELETE FROM bookings WHERE company_id = :cid"),
-            {"cid": company_id},
-        ).rowcount
-        deleted_slots = connection.execute(
-            sa.text("DELETE FROM slots WHERE company_id = :cid"),
-            {"cid": company_id},
-        ).rowcount
-        connection.execute(
-            sa.text(
-                "UPDATE member_memberships SET bookings_used = 0 WHERE company_id = :cid"
-            ),
-            {"cid": company_id},
-        )
-        print(f"\ndeleted {deleted_bookings} bookings, {deleted_slots} slots")
+        if args.purge_catalog:
+            total = 0
+            for statement in _CATALOG_PURGE_SQL:
+                total += connection.execute(
+                    sa.text(statement), {"cid": company_id}
+                ).rowcount
+            print(f"\npurged {total} catalog and transactional rows")
+        else:
+            # Bookings reference slots, so they go first.
+            deleted_bookings = connection.execute(
+                sa.text("DELETE FROM bookings WHERE company_id = :cid"),
+                {"cid": company_id},
+            ).rowcount
+            deleted_slots = connection.execute(
+                sa.text("DELETE FROM slots WHERE company_id = :cid"),
+                {"cid": company_id},
+            ).rowcount
+            connection.execute(
+                sa.text(
+                    "UPDATE member_memberships SET bookings_used = 0 "
+                    "WHERE company_id = :cid"
+                ),
+                {"cid": company_id},
+            )
+            print(f"\ndeleted {deleted_bookings} bookings, {deleted_slots} slots")
 
     # Re-seed in its own transaction: the seed takes an advisory lock for the
     # life of the transaction, and holding it across the deletes above would

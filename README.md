@@ -128,6 +128,22 @@ uv run python scripts/reset_demo_tenant.py --slug demo
 Scoped to one slug and refuses to run without one, so it cannot fan out across
 tenants.
 
+#### Rebuilding a tenant's catalog
+
+The catalog seed is additive: its guards are `ON CONFLICT DO NOTHING` and
+`NOT EXISTS` keyed on **names**. Re-seeding a tenant that was provisioned with
+an older catalog therefore does not rename anything, it inserts alongside, so
+you end up with both `Basic` and `Básico`.
+
+`--purge-catalog` clears the catalog first so the re-seed is authoritative.
+Users and member profiles survive; everything else is rebuilt.
+
+```bash
+uv run python scripts/reset_demo_tenant.py --slug demo --purge-catalog
+```
+
+Use it after changing catalog contents on a tenant that was already seeded.
+
 ## Notes
 
 - The lifespan handler creates the schema on startup, then applies Alembic seed migrations.
