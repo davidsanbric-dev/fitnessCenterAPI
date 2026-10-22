@@ -52,6 +52,98 @@ Set one of:
 
 Optional: `FIREBASE_PROJECT_ID=<firebase-project-id>`.
 
+## Demo tenants
+
+Each top-level key in `credentials/demo_users.json` becomes an isolated company
+(a `target_companies` row) and receives the same Spanish reference catalog:
+disciplines, membership plans, five trainers, six class types, a rolling
+weekday timetable for the next three weeks, and three blog posts.
+
+### Adding a reviewer-facing tenant
+
+The file is gitignored, so add the tenant locally. Omit the `admin` key: a
+tenant with no admin account has nothing to escalate to, which is what you want
+for credentials you hand to someone outside the team.
+
+```jsonc
+{
+  "demo": {
+    "member":  "socio.demo@example.cl:<password>",
+    "trainer": "entrenador.demo@example.cl:<password>"
+  }
+}
+```
+
+The `trainer` entry is optional but recommended: it provisions the staff
+trainer, their one-on-one availability and three past sessions, so the member's
+history and profile screens have content instead of being empty.
+
+Members not listed in `_DEMO_MEMBER_PROFILES` (`app/core/seed.py`) get
+deterministic placeholder personal data, which reads as placeholder on the
+profile screen. To give the demo member realistic details, add an entry keyed
+by the email local-part:
+
+```python
+"socio.demo": {
+    "first_name": "Valentina",
+    "paternal_surname": "Soto",
+    "maternal_surname": "Morales",
+    "rut": "19876543-2",
+    "mobile_phone": "+56912345678",
+    "birth_date": "1995-04-18",
+    "address": "Av. Apoquindo 1234, Las Condes, Santiago",
+    "fitness_goals": "Ganar fuerza y mantener una rutina constante de clases grupales.",
+}
+```
+
+Note the ordering constraint: every `_DEMO_MEMBER_PROFILES` key **must** match a
+member in `demo_users.json`, or the seed raises. Add the tenant first.
+
+### Verifying seed changes
+
+`scripts/seed_smoke_test.py` provisions a scratch database, seeds it twice and
+diffs the row counts, which catches a non-idempotent statement. The whole seed
+runs in one transaction, so a statement that re-inserts on the second run can
+silently discard everything before it.
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:55432/gym_schedule_seedtest \
+    uv run python scripts/seed_smoke_test.py
+```
+
+It refuses to run unless the database name contains `seedtest`.
+
+### Resetting a tenant
+
+The timetable is anchored to `CURRENT_DATE` when it is seeded, so a demo left
+alone eventually shows an empty availability screen. Reset clears that tenant's
+bookings and slots, zeroes its booking counters and re-seeds the timetable from
+today. Catalog, users, profiles and memberships are preserved.
+
+```bash
+uv run python scripts/reset_demo_tenant.py --slug demo --dry-run
+uv run python scripts/reset_demo_tenant.py --slug demo
+```
+
+Scoped to one slug and refuses to run without one, so it cannot fan out across
+tenants.
+
+#### Rebuilding a tenant's catalog
+
+The catalog seed is additive: its guards are `ON CONFLICT DO NOTHING` and
+`NOT EXISTS` keyed on **names**. Re-seeding a tenant that was provisioned with
+an older catalog therefore does not rename anything, it inserts alongside, so
+you end up with both `Basic` and `Básico`.
+
+`--purge-catalog` clears the catalog first so the re-seed is authoritative.
+Users and member profiles survive; everything else is rebuilt.
+
+```bash
+uv run python scripts/reset_demo_tenant.py --slug demo --purge-catalog
+```
+
+Use it after changing catalog contents on a tenant that was already seeded.
+
 ## Notes
 
 - The lifespan handler creates the schema on startup, then applies Alembic seed migrations.

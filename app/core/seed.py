@@ -27,9 +27,9 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO disciplines (company_id, discipline_code, name, description, icon_url) VALUES
-	  (:cid, 'YOGA', 'Yoga', 'Mobility and mindful movement', '/icons/yoga.svg'),
-	  (:cid, 'CROSSFIT', 'CrossFit', 'High intensity functional training', '/icons/crossfit.svg'),
-	  (:cid, 'PILATES', 'Pilates', 'Core strength and posture', '/icons/pilates.svg')
+	  (:cid, 'YOGA', 'Yoga', 'Movilidad y movimiento consciente', '/icons/yoga.svg'),
+	  (:cid, 'CROSSFIT', 'CrossFit', 'Entrenamiento funcional de alta intensidad', '/icons/crossfit.svg'),
+	  (:cid, 'PILATES', 'Pilates', 'Fuerza del core y postura', '/icons/pilates.svg')
 	ON CONFLICT (company_id, discipline_code) DO NOTHING
 	""",
 	# -------------------------------------------------------------------------
@@ -40,9 +40,9 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	  company_id, name, description, price, duration_days, features,
 	  max_bookings_per_month
 	) VALUES
-	  (:cid, 'Basic', 'Access to essential classes', 29.99, 30, '["Gym floor access", "2 group classes per week"]'::json, 8),
-	  (:cid, 'Premium', 'Unlimited classes and amenities', 59.99, 30, '["Unlimited classes", "Sauna access", "Nutrition webinar"]'::json, 30),
-	  (:cid, 'VIP', 'All access with premium coaching', 89.99, 30, '["Unlimited classes", "2 PT sessions", "Priority booking"]'::json, 50)
+	  (:cid, 'Básico', 'Acceso a las clases esenciales', 29.99, 30, '["Acceso a sala de máquinas", "2 clases grupales por semana"]'::json, 8),
+	  (:cid, 'Premium', 'Clases ilimitadas y servicios del club', 59.99, 30, '["Clases ilimitadas", "Acceso a sauna", "Charla de nutrición"]'::json, 30),
+	  (:cid, 'VIP', 'Acceso total con acompañamiento premium', 89.99, 30, '["Clases ilimitadas", "2 sesiones personales", "Reserva prioritaria"]'::json, 50)
 	ON CONFLICT (company_id, name) DO NOTHING
 	""",
 	# -------------------------------------------------------------------------
@@ -50,16 +50,16 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO class_categories (company_id, name, icon_url)
-	SELECT :cid, 'Mind & Body', '/icons/mind-body.svg'
+	SELECT :cid, 'Cuerpo y Mente', '/icons/mind-body.svg'
 	WHERE NOT EXISTS (
-	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Mind & Body'
+	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Cuerpo y Mente'
 	  )
 	""",
 	"""
 	INSERT INTO class_categories (company_id, name, icon_url)
-	SELECT :cid, 'Performance', '/icons/performance.svg'
+	SELECT :cid, 'Rendimiento', '/icons/performance.svg'
 	WHERE NOT EXISTS (
-	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Performance'
+	    SELECT 1 FROM class_categories cc WHERE cc.company_id = :cid AND cc.name = 'Rendimiento'
 	  )
 	""",
 	# -------------------------------------------------------------------------
@@ -69,18 +69,18 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	INSERT INTO class_subcategories (company_id, name, category_id)
 	SELECT :cid, 'Yoga Flow', cc.id
 	FROM class_categories cc
-	WHERE cc.company_id = :cid AND cc.name = 'Mind & Body'
+	WHERE cc.company_id = :cid AND cc.name = 'Cuerpo y Mente'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM class_subcategories sc WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
 	  )
 	""",
 	"""
 	INSERT INTO class_subcategories (company_id, name, category_id)
-	SELECT :cid, 'Strength', cc.id
+	SELECT :cid, 'Fuerza', cc.id
 	FROM class_categories cc
-	WHERE cc.company_id = :cid AND cc.name = 'Performance'
+	WHERE cc.company_id = :cid AND cc.name = 'Rendimiento'
 	  AND NOT EXISTS (
-	    SELECT 1 FROM class_subcategories sc WHERE sc.company_id = :cid AND sc.name = 'Strength'
+	    SELECT 1 FROM class_subcategories sc WHERE sc.company_id = :cid AND sc.name = 'Fuerza'
 	  )
 	""",
 	# -------------------------------------------------------------------------
@@ -88,20 +88,20 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'Sunrise Yoga', sc.id, 'GROUP', 'Bring a yoga mat and water bottle.', 'YOGA-001'
+	SELECT :cid, 'Yoga al Amanecer', sc.id, 'GROUP', 'Trae tu mat de yoga y una botella de agua.', 'YOGA-001'
 	FROM class_subcategories sc
 	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
 	  AND NOT EXISTS (
-	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Sunrise Yoga'
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Yoga al Amanecer'
 	  )
 	""",
 	"""
 	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'CrossFit Starter', sc.id, 'GROUP', 'Arrive 10 minutes early for warm-up.', 'CF-010'
+	SELECT :cid, 'CrossFit Inicial', sc.id, 'GROUP', 'Llega 10 minutos antes para el calentamiento.', 'CF-010'
 	FROM class_subcategories sc
-	WHERE sc.company_id = :cid AND sc.name = 'Strength'
+	WHERE sc.company_id = :cid AND sc.name = 'Fuerza'
 	  AND NOT EXISTS (
-	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'CrossFit Starter'
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'CrossFit Inicial'
 	  )
 	""",
 	# One-on-one PERSONAL class type used by the staff trainer's completed-session
@@ -109,13 +109,13 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# subcategory to match the staff trainer's YOGA discipline.
 	"""
 	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
-	SELECT :cid, 'Assessment Session', sc.id, 'PERSONAL',
-	       'Wear comfortable clothing and bring water; includes body measurements and a mobility screen.',
+	SELECT :cid, 'Sesión de Evaluación', sc.id, 'PERSONAL',
+	       'Usa ropa cómoda y trae agua; incluye medición corporal y evaluación de movilidad.',
 	       'ASSESS-001'
 	FROM class_subcategories sc
 	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
 	  AND NOT EXISTS (
-	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Assessment Session'
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Sesión de Evaluación'
 	  )
 	""",
 	# -------------------------------------------------------------------------
@@ -123,14 +123,14 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	"""
 	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
-	SELECT :cid, 1001, 'Sofia Ramirez', 'Yoga instructor focused on flexibility and balance.',
-	       'sofia_ramirez_profile_image.webp', '["RYT-500", "Mobility Coach"]'::json, TRUE
+	SELECT :cid, 1001, 'Sofia Ramirez', 'Instructora de yoga enfocada en flexibilidad y equilibrio.',
+	       'sofia_ramirez_profile_image.webp', '["RYT-500", "Especialista en movilidad"]'::json, TRUE
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
 	""",
 	"""
 	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
-	SELECT :cid, 1002, 'Diego Herrera', 'Cross-training coach with performance background.',
-	       'diego_herrera_profile_image.webp', '["CrossFit Level 2", "TRX Coach"]'::json, TRUE
+	SELECT :cid, 1002, 'Diego Herrera', 'Entrenador de cross-training con experiencia en alto rendimiento.',
+	       'diego_herrera_profile_image.webp', '["CrossFit Nivel 2", "Instructor TRX"]'::json, TRUE
 	ON CONFLICT (company_id, trainer_code) DO NOTHING
 	""",
 	# Backfill the profile-image filenames on pre-existing catalog trainers whose
@@ -182,8 +182,8 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	FROM membership_plans mp
 	JOIN class_categories cc ON cc.company_id = :cid
 	WHERE mp.company_id = :cid AND (
-	       (cc.name = 'Mind & Body' AND mp.name IN ('Basic', 'Premium', 'VIP'))
-	    OR (cc.name = 'Performance' AND mp.name IN ('Premium', 'VIP'))
+	       (cc.name = 'Cuerpo y Mente' AND mp.name IN ('Básico', 'Premium', 'VIP'))
+	    OR (cc.name = 'Rendimiento' AND mp.name IN ('Premium', 'VIP'))
 	)
 	ON CONFLICT DO NOTHING
 	""",
@@ -199,7 +199,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	       t.id, d.id, ct.id, TRUE, 'ASG-100', 'GROUP'
 	FROM trainers t
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'YOGA'
-	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'Sunrise Yoga'
+	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'Yoga al Amanecer'
 	WHERE t.company_id = :cid AND t.trainer_code = 1001
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s WHERE s.company_id = :cid AND s.slot_assignment_code = 'ASG-100'
@@ -215,7 +215,7 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	       t.id, d.id, ct.id, TRUE, 'ASG-200', 'GROUP'
 	FROM trainers t
 	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = 'CROSSFIT'
-	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'CrossFit Starter'
+	JOIN class_types ct ON ct.company_id = :cid AND ct.name = 'CrossFit Inicial'
 	WHERE t.company_id = :cid AND t.trainer_code = 1002
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s WHERE s.company_id = :cid AND s.slot_assignment_code = 'ASG-200'
@@ -225,43 +225,149 @@ _COMPANY_CATALOG_SQL: list[str] = [
 	# -------------------------------------------------------------------------
 	# BLOG ENTRIES (no business unique key -> guard with NOT EXISTS per company)
 	# -------------------------------------------------------------------------
+	# -------------------------------------------------------------------------
+	# ADDITIONAL CATALOG (demo depth)
+	# Two more trainers and three more class types so the directory and the
+	# availability screens have something to browse rather than a single row per
+	# discipline. Same idempotency rules as the statements above.
+	# -------------------------------------------------------------------------
+	"""
+	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
+	SELECT :cid, 1003, 'Camila Soto', 'Instructora de pilates especializada en core y reeducación postural.',
+	       NULL, '["Pilates Mat & Reformer", "Readaptación postural"]'::json, TRUE
+	ON CONFLICT (company_id, trainer_code) DO NOTHING
+	""",
+	"""
+	INSERT INTO trainers (company_id, trainer_code, full_name, bio, photo_url, certifications, is_active)
+	SELECT :cid, 1004, 'Matías Rojas', 'Entrenador funcional enfocado en acondicionamiento metabólico.',
+	       NULL, '["HIIT Coach", "Kettlebell Nivel 1"]'::json, TRUE
+	ON CONFLICT (company_id, trainer_code) DO NOTHING
+	""",
+	"""
+	INSERT INTO trainer_disciplines (trainer_id, discipline_id)
+	SELECT t.id, d.id
+	FROM trainers t
+	JOIN disciplines d ON d.company_id = :cid AND (
+	       (t.trainer_code = 1003 AND d.discipline_code IN ('PILATES', 'YOGA'))
+	    OR (t.trainer_code = 1004 AND d.discipline_code = 'CROSSFIT')
+	)
+	WHERE t.company_id = :cid
+	ON CONFLICT DO NOTHING
+	""",
+	"""
+	INSERT INTO trainer_membership_plans (trainer_id, membership_plan_id)
+	SELECT t.id, mp.id
+	FROM trainers t
+	JOIN membership_plans mp ON mp.company_id = :cid
+	WHERE t.company_id = :cid AND t.trainer_code IN (1003, 1004)
+	ON CONFLICT DO NOTHING
+	""",
+	"""
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'Pilates Reformer', sc.id, 'GROUP',
+	       'Clase en máquina reformer; usa calcetines antideslizantes.', 'PIL-020'
+	FROM class_subcategories sc
+	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Pilates Reformer'
+	  )
+	""",
+	"""
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'Yoga Restaurativo', sc.id, 'GROUP',
+	       'Sesión suave de cierre de jornada; trae mat y ropa abrigada.', 'YOGA-030'
+	FROM class_subcategories sc
+	WHERE sc.company_id = :cid AND sc.name = 'Yoga Flow'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'Yoga Restaurativo'
+	  )
+	""",
+	"""
+	INSERT INTO class_types (company_id, name, subcategory_id, schedule_type, preparation_info, pdf_code)
+	SELECT :cid, 'HIIT Funcional', sc.id, 'GROUP',
+	       'Intervalos de alta intensidad; trae toalla y botella de agua.', 'HIIT-040'
+	FROM class_subcategories sc
+	WHERE sc.company_id = :cid AND sc.name = 'Fuerza'
+	  AND NOT EXISTS (
+	    SELECT 1 FROM class_types ct WHERE ct.company_id = :cid AND ct.name = 'HIIT Funcional'
+	  )
+	""",
+	# -------------------------------------------------------------------------
+	# ROLLING GROUP SCHEDULE
+	# A weekday timetable for the next 21 days, so availability screens show a
+	# real week rather than two lone slots. Each (class type, trainer, hour) pair
+	# gets its own assignment-code prefix; the day offset completes the code, so
+	# the NOT EXISTS guard makes re-runs no-ops. Hours are distinct per trainer
+	# because slots are unique on (trainer_id, slot_datetime).
+	#
+	# Note these are anchored to CURRENT_DATE at seed time, so the timetable ages
+	# out after three weeks. `scripts/reset_demo_tenant.py` regenerates it.
+	# -------------------------------------------------------------------------
+	"""
+	WITH timetable (code, class_name, disc_code, trainer_code, hour) AS (
+	  VALUES
+	    ('GRP-YOGAAM', 'Yoga al Amanecer', 'YOGA',     1001,  7),
+	    ('GRP-YOGARE', 'Yoga Restaurativo', 'YOGA',    1001, 19),
+	    ('GRP-CFINI',  'CrossFit Inicial', 'CROSSFIT', 1002, 18),
+	    ('GRP-PILRE',  'Pilates Reformer', 'PILATES',  1003, 10),
+	    ('GRP-HIIT',   'HIIT Funcional',   'CROSSFIT', 1004, 20)
+	)
+	INSERT INTO slots (
+	  company_id, slot_datetime, trainer_id, discipline_id,
+	  class_type_id, is_available, slot_assignment_code, schedule_type
+	)
+	SELECT :cid,
+	       (CURRENT_DATE + gs.n * INTERVAL '1 day' + tt.hour * INTERVAL '1 hour')::timestamptz,
+	       t.id, d.id, ct.id, TRUE, tt.code || '-' || gs.n, 'GROUP'
+	FROM generate_series(1, 21) AS gs(n)
+	CROSS JOIN timetable tt
+	JOIN trainers t ON t.company_id = :cid AND t.trainer_code = tt.trainer_code
+	JOIN disciplines d ON d.company_id = :cid AND d.discipline_code = tt.disc_code
+	JOIN class_types ct ON ct.company_id = :cid AND ct.name = tt.class_name
+	WHERE EXTRACT(DOW FROM CURRENT_DATE + gs.n * INTERVAL '1 day') BETWEEN 1 AND 5
+	  AND NOT EXISTS (
+	    SELECT 1 FROM slots s
+	    WHERE s.company_id = :cid AND s.slot_assignment_code = tt.code || '-' || gs.n
+	  )
+	ON CONFLICT (trainer_id, slot_datetime) DO NOTHING
+	""",
 	"""
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
-	       'CrossFit: Unlock Your Full Athletic Potential',
+	       'CrossFit: desarrolla todo tu potencial atlético',
 	       'crossfit_blog_hero_image.webp',
-	       'CrossFit combines strength training, cardiovascular conditioning, and functional movements into high-intensity workouts designed to challenge both body and mind. Whether you''re a beginner looking to improve your fitness or an experienced athlete seeking new challenges, every session is scalable to your current level.'
+	       'El CrossFit combina trabajo de fuerza, acondicionamiento cardiovascular y movimientos funcionales en sesiones de alta intensidad que exigen al cuerpo y a la mente. Tanto si recién empiezas como si llevas años entrenando, cada sesión se adapta a tu nivel actual.'
 	       || chr(10) || chr(10) ||
-	       'Beyond the physical benefits, CrossFit fosters a supportive community that motivates you to push further, celebrate progress, and develop lasting healthy habits. If you''re ready to build strength, endurance, and confidence simultaneously, CrossFit offers a proven path forward.',
+	       'Más allá del beneficio físico, el CrossFit genera una comunidad que acompaña, motiva a seguir avanzando y ayuda a sostener hábitos saludables en el tiempo. Si buscas ganar fuerza, resistencia y confianza a la vez, es un buen punto de partida.',
 	       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 	WHERE NOT EXISTS (
-	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'CrossFit: Unlock Your Full Athletic Potential'
+	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'CrossFit: desarrolla todo tu potencial atlético'
 	)
 	""",
 	"""
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
-	       'Yoga: Find Balance, Strength, and Inner Calm',
+	       'Yoga: equilibrio, fuerza y calma interior',
 	       'yoga_blog_hero_image.webp',
-	       'Yoga is more than stretching—it''s a holistic practice that connects movement, breathing, and mindfulness. Through carefully guided postures and controlled breathing techniques, yoga helps improve flexibility, posture, mobility, and mental clarity.'
+	       'El yoga es mucho más que estirar: es una práctica que conecta movimiento, respiración y atención plena. A través de posturas guiadas y técnicas de respiración controlada, mejora la flexibilidad, la postura, la movilidad y la claridad mental.'
 	       || chr(10) || chr(10) ||
-	       'In today''s fast-paced world, yoga provides a valuable opportunity to slow down, reduce stress, and reconnect with yourself. Whether your goal is relaxation, recovery, or enhanced athletic performance, regular practice can bring lasting benefits to both body and mind.',
+	       'En un ritmo de vida acelerado, el yoga ofrece un espacio para bajar revoluciones, reducir el estrés y reconectar contigo. Ya sea que busques relajación, recuperación o mejorar tu rendimiento deportivo, la práctica constante deja beneficios duraderos.',
 	       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 	WHERE NOT EXISTS (
-	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'Yoga: Find Balance, Strength, and Inner Calm'
+	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'Yoga: equilibrio, fuerza y calma interior'
 	)
 	""",
 	"""
 	INSERT INTO blogs (company_id, title, hero_image_path, text, created_at, updated_at)
 	SELECT :cid,
-	       'Pilates: Build Strength from the Core Out',
+	       'Pilates: fuerza que nace del centro',
 	       'pilates_blog_hero_image.webp',
-	       'Pilates focuses on controlled movements that strengthen the body''s core muscles while improving posture, balance, and overall body awareness. Every exercise emphasizes precision and proper alignment, helping create a strong foundation for daily activities and athletic performance alike.'
+	       'El pilates trabaja con movimientos controlados que fortalecen la musculatura del centro del cuerpo mientras mejoran la postura, el equilibrio y la conciencia corporal. Cada ejercicio prioriza la precisión y la alineación, construyendo una base sólida tanto para el día a día como para el deporte.'
 	       || chr(10) || chr(10) ||
-	       'Suitable for all fitness levels, Pilates is particularly effective for developing functional strength, reducing muscular imbalances, and enhancing flexibility. By training smarter rather than harder, Pilates helps you move with greater confidence, control, and efficiency in every aspect of life.',
+	       'Apto para todos los niveles, el pilates es especialmente efectivo para desarrollar fuerza funcional, corregir descompensaciones musculares y ganar flexibilidad. Entrenando con criterio más que con intensidad, te ayuda a moverte con más control y eficiencia.',
 	       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 	WHERE NOT EXISTS (
-	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'Pilates: Build Strength from the Core Out'
+	  SELECT 1 FROM blogs b WHERE b.company_id = :cid AND b.title = 'Pilates: fuerza que nace del centro'
 	)
 	""",
 ]
@@ -378,6 +484,18 @@ def _seed_roles(bind) -> None:
 # falling through to placeholder data. Mirrors how _STAFF_TRAINER_SQL supplies
 # specific values for Jordan Pike instead of placeholders or random-generated.
 _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
+	"socio.demo": {
+		"first_name": "Valentina",
+		"paternal_surname": "Soto",
+		"maternal_surname": "Morales",
+		"rut": "19876543-2",
+		"mobile_phone": "+56912345678",
+		"landline_phone": None,
+		"birth_date": "1995-04-18",
+		"address": "Av. Apoquindo 1234, Las Condes, Santiago",
+		"avatar_url": None,
+		"fitness_goals": "Ganar fuerza y mantener una rutina constante de clases grupales.",
+	},
 	"alex-member": {
 		"first_name": "Alex",
 		"paternal_surname": "Torres",
@@ -388,7 +506,7 @@ _DEMO_MEMBER_PROFILES: dict[str, dict[str, object]] = {
 		"birth_date": "1993-07-22",
 		"address": "Av. Providencia 456, Santiago",
 		"avatar_url": "alex_torres_profile_image.webp",
-		"fitness_goals": "Build endurance and increase overall strength through consistent group classes.",
+		"fitness_goals": "Mejorar la resistencia y ganar fuerza general con clases grupales constantes.",
 	},
 }
 
@@ -442,7 +560,10 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 			profile = _DEMO_MEMBER_PROFILES.get(local_part.lower(), {})
 			# Deterministic phone fallback for members not in _DEMO_MEMBER_PROFILES so
 			# the NOT NULL mobile_phone column is always satisfied without random().
-			fallback_phone = "+569" + hashlib.md5(email.encode()).hexdigest()[:8]
+			# Folded to digits: the hex digest produced values like "+56999c21292",
+			# which is not a phone number and shows up as-is on the profile screen.
+			_digest = int(hashlib.md5(email.encode()).hexdigest()[:8], 16)
+			fallback_phone = "+569" + str(_digest % 100_000_000).zfill(8)
 			# Hardcoded RUT when known, otherwise a deterministic well-formed value.
 			member_rut = profile.get("rut") or str(Rut.deterministic_for(email))
 			bind.execute(
@@ -459,7 +580,7 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 				{
 					"first_name": profile.get("first_name", default_first),
 					"paternal_surname": profile.get("paternal_surname", "Demo"),
-					"maternal_surname": profile.get("maternal_surname", "User"),
+					"maternal_surname": profile.get("maternal_surname", "Soto"),
 					"rut": member_rut,
 					"mobile_phone": profile.get("mobile_phone") or fallback_phone,
 					"landline_phone": profile.get("landline_phone"),
@@ -512,7 +633,7 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 						") "
 						"SELECT :cid, u.id, mp.id, CURRENT_DATE, CURRENT_DATE + mp.duration_days, 'ACTIVE', 0 "
 						"FROM users u "
-						"JOIN membership_plans mp ON mp.company_id = :cid AND mp.name = 'Basic' "
+						"JOIN membership_plans mp ON mp.company_id = :cid AND mp.name = 'Básico' "
 						"WHERE lower(u.email) = :email "
 						"  AND NOT EXISTS ("
 						"    SELECT 1 FROM member_memberships m WHERE m.user_id = u.id"
@@ -540,8 +661,8 @@ _STAFF_TRAINER_SQL: list[str] = [
 	  is_active, user_id
 	)
 	SELECT :cid, 2001, 'Jordan Pike',
-	       'Personal trainer managing one-on-one sessions and availability.',
-	       'jordan_pike_profile_image.webp', '["NASM-CPT", "Strength & Conditioning"]'::json,
+	       'Entrenador personal a cargo de sesiones uno a uno y su disponibilidad.',
+	       'jordan_pike_profile_image.webp', '["NASM-CPT", "Fuerza y acondicionamiento"]'::json,
 	       TRUE,
 	       u.id
 	FROM users u
@@ -569,7 +690,7 @@ _STAFF_TRAINER_SQL: list[str] = [
 	""",
 	# -------------------------------------------------------------------------
 	# 6 AVAILABLE SLOTS, one per day starting two days after creation (09:00).
-	# Each carries the PERSONAL 'Assessment Session' class type (seeded in
+	# Each carries the PERSONAL 'Sesión de Evaluación' class type (seeded in
 	# _COMPANY_CATALOG_SQL before this runs) so a member booking these slots
 	# inherits that class type via BookingService._build_booking. Idempotent via
 	# the slot_assignment_code guard, so re-running on a later day does not append
@@ -583,7 +704,7 @@ _STAFF_TRAINER_SQL: list[str] = [
 	SELECT :cid,
 	       date_trunc('minute', (NOW() + INTERVAL '2 days' + (gs.n || ' days')::interval + INTERVAL '9 hours')::timestamptz),
 	       t.id, d.id,
-	       (SELECT id FROM class_types WHERE company_id = :cid AND name = 'Assessment Session'),
+	       (SELECT id FROM class_types WHERE company_id = :cid AND name = 'Sesión de Evaluación'),
 	       TRUE, 'TRN2001-' || gs.n, 'PERSONAL'
 	FROM generate_series(0, 5) AS gs(n)
 	CROSS JOIN trainers t
@@ -612,7 +733,7 @@ def _seed_trainer_staff(bind, company_id: int, email: str) -> None:
 # Per-company completed-booking history: 3 past PERSONAL "Assessment Session"
 # bookings (6, 4 and 2 days ago at 09:00) pairing the demo member with the staff
 # trainer (code 2001), giving the member a "last week" history the home/profile
-# screens can surface. The slots and bookings carry the 'Assessment Session'
+# screens can surface. The slots and bookings carry the 'Sesión de Evaluación'
 # class type (seeded in _COMPANY_CATALOG_SQL) so the history reads consistently.
 # Each statement is idempotent and scoped to :cid; the slot/booking guards key on
 # the 'TRN2001-DONE-<n>' assignment codes so re-runs append nothing.
@@ -635,7 +756,7 @@ _COMPLETED_BOOKINGS_SQL: list[str] = [
 	CROSS JOIN class_types ct
 	WHERE t.company_id = :cid AND t.trainer_code = 2001
 	  AND d.company_id = :cid AND d.discipline_code = 'YOGA'
-	  AND ct.company_id = :cid AND ct.name = 'Assessment Session'
+	  AND ct.company_id = :cid AND ct.name = 'Sesión de Evaluación'
 	  AND NOT EXISTS (
 	    SELECT 1 FROM slots s
 	    WHERE s.company_id = :cid AND s.slot_assignment_code = 'TRN2001-DONE-' || g.n
@@ -708,7 +829,7 @@ def _seed_completed_bookings(bind, company_id: int) -> None:
 
 	Idempotent: slots and bookings guard on the 'TRN2001-DONE-<n>' assignment
 	codes and the quota bump uses GREATEST, so repeated runs are no-ops. A no-op
-	when the staff trainer, the 'Assessment Session' class type, or a member user
+	when the staff trainer, the 'Sesión de Evaluación' class type, or a member user
 	is absent (the inserts simply match no rows).
 	"""
 	for statement in _COMPLETED_BOOKINGS_SQL:
