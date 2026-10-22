@@ -45,6 +45,7 @@ def _summarize(connection, company_id: int) -> dict[str, int]:
             "bookings",
             "slots",
             "member_memberships",
+            "member_profiles",
             "disciplines",
             "class_types",
             "membership_plans",
@@ -96,6 +97,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--refresh-profiles",
+        action="store_true",
+        help=(
+            "also delete the tenant's member profiles so the re-seed rebuilds "
+            "them from _DEMO_MEMBER_PROFILES, discarding any edits made in the "
+            "app (user accounts and logins are kept)"
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="report what would change without writing",
@@ -138,7 +148,18 @@ def main() -> int:
             "its whole catalog (disciplines, plans, trainers, class types, "
             "blogs), then re-seed all of it from the current code."
         )
-        print("users and member profiles are left in place.")
+        print(
+            "member profiles are rebuilt too."
+            if args.refresh_profiles
+            else "users and member profiles are left in place."
+        )
+    elif args.refresh_profiles:
+        print(
+            "\nthis will DELETE that tenant's bookings, slots and member "
+            "profiles, then re-seed them. Profiles come back from the seeded "
+            "persona, so edits made in the app are discarded."
+        )
+        print("user accounts and logins are kept.")
     else:
         print(
             "\nthis will DELETE that tenant's bookings and slots, reset its "
@@ -182,6 +203,17 @@ def main() -> int:
                 {"cid": company_id},
             )
             print(f"\ndeleted {deleted_bookings} bookings, {deleted_slots} slots")
+
+        # Nothing references member_profiles, so dropping the rows is safe; the
+        # seed recreates them from the persona. This is the forced counterpart
+        # to the seed's own backfill, which only heals a profile still carrying
+        # the generated placeholder and deliberately leaves edits alone.
+        if args.refresh_profiles:
+            dropped = connection.execute(
+                sa.text("DELETE FROM member_profiles WHERE company_id = :cid"),
+                {"cid": company_id},
+            ).rowcount
+            print(f"dropped {dropped} member profiles for rebuild")
 
     # Re-seed in its own transaction: the seed takes an advisory lock for the
     # life of the transaction, and holding it across the deletes above would

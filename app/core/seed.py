@@ -622,6 +622,46 @@ def _seed_demo_users(bind, company_id_by_slug: dict[str, int]) -> None:
 					{"avatar": seeded_avatar, "email": email},
 				)
 
+			# Backfill the persona onto a profile that was created before the
+			# persona existed. The INSERT above is ON CONFLICT (user_id) DO
+			# NOTHING, so a member seeded earlier keeps the generated placeholder
+			# ("Socio.demo Demo Soto") forever, which is what a reviewer then sees
+			# on the profile screen.
+			#
+			# Guarded on the placeholder surname rather than on NULLs: these
+			# columns are NOT NULL and are always populated, so "is it still the
+			# generated default?" is the only safe signal. No real persona uses
+			# "Demo" as a paternal surname, so a profile the member has since
+			# edited is never touched.
+			if profile:
+				bind.execute(
+					sa.text(
+						"UPDATE member_profiles SET "
+						"  first_name = :first_name, "
+						"  paternal_surname = :paternal_surname, "
+						"  maternal_surname = :maternal_surname, "
+						"  mobile_phone = :mobile_phone, "
+						"  landline_phone = :landline_phone, "
+						"  birth_date = CAST(:birth_date AS DATE), "
+						"  address = :address, "
+						"  fitness_goals = :fitness_goals "
+						"FROM users u "
+						"WHERE member_profiles.user_id = u.id AND lower(u.email) = :email "
+						"  AND member_profiles.paternal_surname = 'Demo'"
+					),
+					{
+						"first_name": profile.get("first_name", default_first),
+						"paternal_surname": profile.get("paternal_surname", "Demo"),
+						"maternal_surname": profile.get("maternal_surname", "Soto"),
+						"mobile_phone": profile.get("mobile_phone") or fallback_phone,
+						"landline_phone": profile.get("landline_phone"),
+						"birth_date": profile.get("birth_date"),
+						"address": profile.get("address"),
+						"fitness_goals": profile.get("fitness_goals"),
+						"email": email,
+					},
+				)
+
 			# Members get a Basic plan subscription so the mobile app can surface it
 			# and the booking allowance can be enforced. Idempotent: skipped when the
 			# member already has a membership (user_id is unique on the table).

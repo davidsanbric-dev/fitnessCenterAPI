@@ -99,6 +99,15 @@ by the email local-part:
 Note the ordering constraint: every `_DEMO_MEMBER_PROFILES` key **must** match a
 member in `demo_users.json`, or the seed raises. Add the tenant first.
 
+Adding a persona after the member was already seeded still works: the profile
+insert is `ON CONFLICT (user_id) DO NOTHING`, so the seed also backfills the
+persona onto a profile that still carries the generated placeholder. The guard
+is the placeholder surname `Demo`, since these columns are `NOT NULL` and are
+never empty, so a profile the member has edited in the app is left alone.
+
+To force a profile back to the persona regardless of edits, use
+`--refresh-profiles` below.
+
 ### Verifying seed changes
 
 `scripts/seed_smoke_test.py` provisions a scratch database, seeds it twice and
@@ -143,6 +152,19 @@ uv run python scripts/reset_demo_tenant.py --slug demo --purge-catalog
 ```
 
 Use it after changing catalog contents on a tenant that was already seeded.
+
+#### Rebuilding member profiles
+
+`--refresh-profiles` drops the tenant's member profiles so the re-seed rebuilds
+them from `_DEMO_MEMBER_PROFILES`, discarding anything edited in the app. User
+accounts and logins are untouched, so the demo credentials keep working.
+
+```bash
+uv run python scripts/reset_demo_tenant.py --slug demo --refresh-profiles
+```
+
+Without it, a profile the member edited is preserved: the seed's backfill only
+heals one still holding the generated placeholder.
 
 ## Notes
 
